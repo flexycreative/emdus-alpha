@@ -13,7 +13,6 @@ input,select{background:#15171a;color:#fff;border:1px solid #2a2e33;padding:10px
 #results>div{padding:12px;border-bottom:1px solid #24282d;cursor:pointer}
 #results>div:active{background:#ffa21a;color:#111}
 #results .cnt{padding:6px 10px;font-size:11px;color:#9aa1a9;background:#0b0c0e;position:sticky;top:0;border-bottom:1px solid #24282d;z-index:1}
-#results .cnt:active{background:#0b0c0e;color:#9aa1a9}
 table{width:100%;border-collapse:collapse;background:#15171a;border:1px solid #2a2e33;margin-top:8px}
 th,td{padding:6px 8px;text-align:right;border-bottom:1px solid #24282d}
 th:first-child,td:first-child{text-align:left}
@@ -52,17 +51,31 @@ function fmt(x){
 
 function networkOf(c){
   c=String(c||'').toUpperCase();
-  const m={'CT_195':'bsc','56':'bsc','CT_1':'eth','1':'eth','CT_137':'polygon','137':'polygon','CT_8453':'base','8453':'base','CT_42161':'arbitrum','42161':'arbitrum'};
-  return m[c]||null;
+  if(c==='CT_501')return 'solana';
+  if(c==='CT_195'||c==='56')return 'bsc';
+  if(c==='CT_1'||c==='1')return 'eth';
+  if(c==='CT_137'||c==='137')return 'polygon';
+  if(c==='CT_8453'||c==='8453')return 'base';
+  if(c==='CT_42161'||c==='42161')return 'arbitrum';
+  if(c==='CT_10'||c==='10')return 'optimism';
+  return null;
 }
 
 async function bq(network,token,limit){
-  const q='query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
-  const r=await fetch(URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},body:JSON.stringify({query:q,variables:{n:network,t:token,l:limit}})});
-  if(!r.ok)throw new Error('HTTP '+r.status);
+  let q;
+  if(network==='solana'){
+    q='query($n:String!,$t:String!,$l:Int!){Solana(network:$n){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{MintAddress:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
+    var vars={n:network,t:token,l:limit};
+  } else {
+    q='query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
+    var vars={n:network,t:token,l:limit};
+  }
+  const r=await fetch(URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},body:JSON.stringify({query:q,variables:vars})});
+  if(!r.ok)throw new Error('HTTP '+r.status+' ('+network+')');
   const j=await r.json();
   if(j.errors)throw new Error(j.errors[0].message);
-  return(j.data?.EVM?.DEXTradeByTokens||[]).map(x=>{
+  const rows=(network==='solana'?j.data?.Solana?.DEXTradeByTokens:j.data?.EVM?.DEXTradeByTokens)||[];
+  return rows.map(x=>{
     const t=new Date(x.Block?.Time).getTime();
     const u=parseFloat(x.Trade?.AmountInUSD||0);
     const s=String(x.Trade?.Side?.Type||'').toLowerCase();
@@ -79,9 +92,9 @@ async function load(base){
     if(!tok)throw new Error('Bulunamadı: '+base);
     currentBase=tok.base;
     const net=networkOf(tok.chainId);
-    if(!net)throw new Error('Zincir: '+tok.chainId);
+    if(!net)throw new Error('Zincir: '+tok.chainId+' (desteklenmiyor)');
     const trades=await bq(net,tok.contract,1000);
-    if(!trades.length)throw new Error('İşlem yok: '+net);
+    if(!trades.length)throw new Error('İşlem yok: '+net+' ('+tok.contract.slice(0,8)+'...)');
     const iv={'1m':60e3,'5m':300e3,'15m':900e3,'1h':3600e3,'4h':14400e3,'1d':86400e3}[$('interval').value]||3600e3;
     const m=new Map();
     for(const x of trades){
@@ -109,19 +122,11 @@ async function load(base){
 }
 
 function showCoins(q){
-  if(!R.byBase.size){
-    $('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Token listesi yükleniyor...</div>';
-    $('results').hidden=false;
-    return;
-  }
+  if(!R.byBase.size){$('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Yükleniyor...</div>';$('results').hidden=false;return;}
   const query=up(q).trim();
   const all=R.symbols();
   const list=query?all.filter(t=>t.base.includes(query)||up(t.name).includes(query)||t.id===query||t.full.includes(query)):all;
-  if(!list.length){
-    $('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Sonuç yok</div>';
-    $('results').hidden=false;
-    return;
-  }
+  if(!list.length){$('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Sonuç yok</div>';$('results').hidden=false;return;}
   let html='<div class="cnt">'+list.length+' coin · '+(query?'filtre: '+query:'tümü')+'</div>';
   for(const t of list){
     const name=t.name?' <small style="color:#9aa1a9">'+t.name+'</small>':'';
@@ -134,29 +139,14 @@ function showCoins(q){
 $('search').addEventListener('focus',()=>showCoins($('search').value));
 $('search').addEventListener('input',()=>showCoins($('search').value));
 $('search').addEventListener('click',()=>showCoins($('search').value));
-
-$('results').addEventListener('click',e=>{
-  const d=e.target.closest('div[data-b]');
-  if(!d)return;
-  $('search').value=d.dataset.b;
-  $('results').hidden=true;
-  load(d.dataset.b);
-});
-
-document.addEventListener('click',e=>{
-  if(!e.target.closest('#sw'))$('results').hidden=true;
-});
+$('results').addEventListener('click',e=>{const d=e.target.closest('div[data-b]');if(!d)return;$('search').value=d.dataset.b;$('results').hidden=true;load(d.dataset.b);});
+document.addEventListener('click',e=>{if(!e.target.closest('#sw'))$('results').hidden=true;});
 
 ['1m','5m','15m','1h','4h','1d'].forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('interval').appendChild(o);});
 $('interval').value='1h';
 $('interval').addEventListener('change',()=>load(currentBase));
 
-R.load().then(()=>{
-  load('PEPE');
-}).catch(e=>{
-  $('err').textContent='Token listesi yüklenemedi: '+e.message;
-  $('err').style.color='#ff6470';
-});
+R.load().then(()=>load('PEPE')).catch(e=>{$('err').textContent='Token listesi: '+e.message;$('err').style.color='#ff6470';});
 </script>
 </body>
 </html>
