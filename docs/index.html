@@ -31,14 +31,37 @@ th{color:#9aa1a9;font-size:11px}
 <div id="err"></div>
 <table id="tbl"><tr><td class="na" colspan="4">Coin seçin</td></tr></table>
 <script type="module">
-import { AlphaRegistry } from './alpha.js';
-
 const KEY='ory_at_JQ5gyIeUfz3K3hQR1d8J-wCABSs4YIBPs0h5aTJzBfg.4IFGicm7D7DhS05lij7EMNhJIxTkJ3jMVmElYmBEsQQ';
-const URL='https://graphql.bitquery.io/';
-const R=new AlphaRegistry({storage:{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v)}});
+// Güncel Bitquery endpoint'i (dokümantasyona göre)
+const URL='https://streaming.bitquery.io/graphql';
 const $=id=>document.getElementById(id);
 const up=s=>String(s||'').toLocaleUpperCase('en-US').replace(/İ/g,'I');
 let currentBase='PEPE';
+
+// Token listesi doğrudan gömülü (alpha.js bağımlılığı yok)
+const TOKENS = [
+  {base:'PEPE', name:'Pepe', chainId:'CT_501', contract:'8ha2CTTh7qr74o8jLbsniEdNMxnRpMttsWLwarEmpump'},
+  {base:'BTC',  name:'Bitcoin', chainId:'CT_195', contract:'0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c'},
+  {base:'ETH',  name:'Ethereum', chainId:'CT_195', contract:'0x2170ed0880ac9a755fd29b2688956bd959f933f8'},
+  {base:'BNB',  name:'BNB', chainId:'CT_195', contract:'0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c'},
+  {base:'SOL',  name:'Solana', chainId:'CT_501', contract:'So11111111111111111111111111111111111111112'},
+  {base:'XRP',  name:'XRP', chainId:'CT_195', contract:'0x1d2f0da169ceb9fc7b3144628db156f3f6c60dbe'},
+  {base:'ADA',  name:'Cardano', chainId:'CT_195', contract:'0x3ee2200efb3400fabb9aacf31297cbdd1d435d47'},
+  {base:'DOGE', name:'Dogecoin', chainId:'CT_195', contract:'0xba2ae424d960c26247dd6c32edc70b295c744c43'},
+  {base:'SHIB', name:'Shiba Inu', chainId:'CT_195', contract:'0x2859e4544c4bb03966803b044a93563bd2d0dd4d'},
+  {base:'LTC',  name:'Litecoin', chainId:'CT_195', contract:'0x4338665cbb7b2485a8855a139b75d5e34ab0db94'},
+  {base:'DOT',  name:'Polkadot', chainId:'CT_195', contract:'0x7083609fce4d1d8dc0c979aab8c869ea2c873402'},
+  {base:'LINK', name:'Chainlink', chainId:'CT_195', contract:'0xf8a0bf9cf54bb92f17374d9e9a321e6a111a51bd'},
+  {base:'MATIC', name:'Polygon', chainId:'CT_195', contract:'0xcc42724c6683b7e57334c4e856f4c9965ed682bd'},
+  {base:'AVAX', name:'Avalanche', chainId:'CT_195', contract:'0x1ce0c2827e2ef14d5c4f29a091d735a204794041'},
+  {base:'UNI',  name:'Uniswap', chainId:'CT_195', contract:'0xbf5140a22578168fd562dccf235e5d43a02ce9b1'},
+  {base:'ATOM', name:'Cosmos', chainId:'CT_195', contract:'0x0eb3a705fc54725037cc9e008bdede697f62f335'},
+  {base:'ETC',  name:'Ethereum Classic', chainId:'CT_195', contract:'0x3d6545b08693dae087e957cb1180ee38b9e3c25e'},
+  {base:'BCH',  name:'Bitcoin Cash', chainId:'CT_195', contract:'0x8ff795a6f4d97e7887c79bea79aba5cc76444adf'},
+  {base:'FIL',  name:'Filecoin', chainId:'CT_195', contract:'0x0d8ce2a99bb6e3b7db580ed848240e4a0f9ae153'},
+  {base:'TRX',  name:'TRON', chainId:'CT_195', contract:'0x85eac5ac2f758618dfa09bdbe0cf174e7d574d5b'},
+  {base:'EOS',  name:'EOS', chainId:'CT_195', contract:'0x56b6fb708fc5732dec1afc8d8556423a2edccbd6'}
+];
 
 function fmt(x){
   if(x==null||isNaN(x))return'—';
@@ -57,96 +80,140 @@ function networkOf(c){
   if(c==='CT_137'||c==='137')return 'polygon';
   if(c==='CT_8453'||c==='8453')return 'base';
   if(c==='CT_42161'||c==='42161')return 'arbitrum';
-  if(c==='CT_10'||c==='10')return 'optimism';
   return null;
 }
 
-async function bq(network,token,limit){
-  let q;
-  if(network==='solana'){
-    q='query($n:String!,$t:String!,$l:Int!){Solana(network:$n){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{MintAddress:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
-    var vars={n:network,t:token,l:limit};
+async function bq(network, token, limit){
+  let q, vars;
+  if(network === 'solana'){
+    // Solana için dataset: realtime eklendi
+    q = 'query($t:String!,$l:Int!){Solana(dataset:realtime){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{MintAddress:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
+    vars = {t: token, l: limit};
   } else {
-    q='query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
-    var vars={n:network,t:token,l:limit};
+    // EVM ağları için dataset: combined
+    q = 'query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
+    vars = {n: network, t: token, l: limit};
   }
-  const r=await fetch(URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},body:JSON.stringify({query:q,variables:vars})});
-  if(!r.ok)throw new Error('HTTP '+r.status+' ('+network+')');
-  const j=await r.json();
-  if(j.errors)throw new Error(j.errors[0].message);
-  const rows=(network==='solana'?j.data?.Solana?.DEXTradeByTokens:j.data?.EVM?.DEXTradeByTokens)||[];
-  return rows.map(x=>{
-    const t=new Date(x.Block?.Time).getTime();
-    const u=parseFloat(x.Trade?.AmountInUSD||0);
-    const s=String(x.Trade?.Side?.Type||'').toLowerCase();
-    if(!(t>0)||!(u>0))return null;
-    return{t,b:s==='buy'?u:0,s:s==='sell'?u:0};
+
+  const r = await fetch(URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + KEY
+    },
+    body: JSON.stringify({query: q, variables: vars})
+  });
+
+  if(!r.ok){
+    const txt = await r.text();
+    throw new Error('HTTP ' + r.status + ': ' + txt.slice(0, 200));
+  }
+
+  const j = await r.json();
+  if(j.errors) throw new Error(j.errors[0].message);
+
+  const rows = (network === 'solana' ? j.data?.Solana?.DEXTradeByTokens : j.data?.EVM?.DEXTradeByTokens) || [];
+
+  return rows.map(x => {
+    const t = new Date(x.Block?.Time).getTime();
+    const u = parseFloat(x.Trade?.AmountInUSD || 0);
+    const s = String(x.Trade?.Side?.Type || '').toLowerCase();
+    if(!(t > 0) || !(u > 0)) return null;
+    return {t, b: s === 'buy' ? u : 0, s: s === 'sell' ? u : 0};
   }).filter(Boolean);
 }
 
 async function load(base){
-  $('err').textContent='Yükleniyor...';
-  $('err').style.color='#ffb547';
+  $('err').textContent = 'Yükleniyor...';
+  $('err').style.color = '#ffb547';
   try{
-    const tok=R.resolve(base);
-    if(!tok)throw new Error('Bulunamadı: '+base);
-    currentBase=tok.base;
-    const net=networkOf(tok.chainId);
-    if(!net)throw new Error('Zincir: '+tok.chainId+' (desteklenmiyor)');
-    const trades=await bq(net,tok.contract,1000);
-    if(!trades.length)throw new Error('İşlem yok: '+net+' ('+tok.contract.slice(0,8)+'...)');
-    const iv={'1m':60e3,'5m':300e3,'15m':900e3,'1h':3600e3,'4h':14400e3,'1d':86400e3}[$('interval').value]||3600e3;
-    const m=new Map();
+    const tok = TOKENS.find(t => t.base === base);
+    if(!tok) throw new Error('Coin bulunamadı: ' + base);
+    currentBase = tok.base;
+
+    const net = networkOf(tok.chainId);
+    if(!net) throw new Error('Zincir: ' + tok.chainId);
+
+    const trades = await bq(net, tok.contract, 1000);
+    if(!trades.length) throw new Error('İşlem yok: ' + net + ' (' + tok.contract.slice(0, 8) + '...)');
+
+    const iv = {'1m':60000, '5m':300000, '15m':900000, '1h':3600000, '4h':14400000, '1d':86400000}[$('interval').value] || 3600000;
+
+    const m = new Map();
     for(const x of trades){
-      const k=Math.floor(x.t/iv)*iv;
-      if(!m.has(k))m.set(k,{b:0,s:0});
-      const o=m.get(k);o.b+=x.b;o.s+=x.s;
+      const k = Math.floor(x.t / iv) * iv;
+      if(!m.has(k)) m.set(k, {b: 0, s: 0});
+      const o = m.get(k);
+      o.b += x.b;
+      o.s += x.s;
     }
-    const arr=[...m.entries()].sort((a,b)=>b[0]-a[0]).map(([t,o])=>({t,d:o.b-o.s,v:o.b+o.s}));
-    if(arr.length<2)throw new Error('Yetersiz bar');
-    let h='<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
-    for(const n of[1,5,10,14,20,50,100,200]){
-      let sum=0,mx=null,vs=0;
-      for(let i=0;i<Math.min(n,arr.length);i++){sum+=arr[i].d;vs+=arr[i].v;if(mx===null||sum>mx)mx=sum;}
-      const ad=vs>0?sum/vs*100:0;
-      const c=sum>=0?'p':'n';
-      h+='<tr><td>'+n+'</td><td class="'+c+'">'+fmt(sum)+'</td><td class="'+c+'">'+fmt(mx)+'</td><td class="'+c+'">'+(Math.round(ad*10)/10)+'%</td></tr>';
+
+    const arr = [...m.entries()].sort((a, b) => b[0] - a[0]).map(([t, o]) => ({t, d: o.b - o.s, v: o.b + o.s}));
+    if(arr.length < 2) throw new Error('Yetersiz bar');
+
+    let h = '<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
+    for(const n of [1, 5, 10, 14, 20, 50, 100, 200]){
+      let sum = 0, mx = null, vs = 0;
+      for(let i = 0; i < Math.min(n, arr.length); i++){
+        sum += arr[i].d;
+        vs += arr[i].v;
+        if(mx === null || sum > mx) mx = sum;
+      }
+      const ad = vs > 0 ? sum / vs * 100 : 0;
+      const c = sum >= 0 ? 'p' : 'n';
+      h += '<tr><td>' + n + '</td><td class="' + c + '">' + fmt(sum) + '</td><td class="' + c + '">' + fmt(mx) + '</td><td class="' + c + '">' + (Math.round(ad * 10) / 10) + '%</td></tr>';
     }
-    $('tbl').innerHTML=h;
-    $('err').textContent='✓ '+trades.length+' işlem · '+arr.length+' bar · '+net.toUpperCase()+' · '+tok.base;
-    $('err').style.color='#3ddc97';
-  }catch(e){
-    $('err').textContent=e.message;
-    $('err').style.color='#ff6470';
+
+    $('tbl').innerHTML = h;
+    $('err').textContent = '✓ ' + trades.length + ' işlem · ' + arr.length + ' bar · ' + net.toUpperCase() + ' · ' + tok.base;
+    $('err').style.color = '#3ddc97';
+  } catch(e){
+    $('err').textContent = e.message;
+    $('err').style.color = '#ff6470';
   }
 }
 
 function showCoins(q){
-  if(!R.byBase.size){$('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Yükleniyor...</div>';$('results').hidden=false;return;}
-  const query=up(q).trim();
-  const all=R.symbols();
-  const list=query?all.filter(t=>t.base.includes(query)||up(t.name).includes(query)||t.id===query||t.full.includes(query)):all;
-  if(!list.length){$('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Sonuç yok</div>';$('results').hidden=false;return;}
-  let html='<div class="cnt">'+list.length+' coin · '+(query?'filtre: '+query:'tümü')+'</div>';
-  for(const t of list){
-    const name=t.name?' <small style="color:#9aa1a9">'+t.name+'</small>':'';
-    html+='<div data-b="'+t.base+'"><b>'+t.base+'</b>'+name+' <small style="color:#6b737c">· '+t.full+'</small></div>';
+  const query = up(q).trim();
+  const list = query ? TOKENS.filter(t => t.base.includes(query) || up(t.name).includes(query)) : TOKENS;
+  if(!list.length){
+    $('results').innerHTML = '<div style="padding:12px;color:#9aa1a9">Sonuç yok</div>';
+    $('results').hidden = false;
+    return;
   }
-  $('results').innerHTML=html;
-  $('results').hidden=false;
+  let html = '<div class="cnt">' + list.length + ' coin · ' + (query ? 'filtre: ' + query : 'tümü') + '</div>';
+  for(const t of list){
+    html += '<div data-b="' + t.base + '"><b>' + t.base + '</b> <small style="color:#9aa1a9">' + t.name + '</small></div>';
+  }
+  $('results').innerHTML = html;
+  $('results').hidden = false;
 }
 
-$('search').addEventListener('focus',()=>showCoins($('search').value));
-$('search').addEventListener('input',()=>showCoins($('search').value));
-$('search').addEventListener('click',()=>showCoins($('search').value));
-$('results').addEventListener('click',e=>{const d=e.target.closest('div[data-b]');if(!d)return;$('search').value=d.dataset.b;$('results').hidden=true;load(d.dataset.b);});
-document.addEventListener('click',e=>{if(!e.target.closest('#sw'))$('results').hidden=true;});
+$('search').addEventListener('focus', () => showCoins($('search').value));
+$('search').addEventListener('input', () => showCoins($('search').value));
+$('search').addEventListener('click', () => showCoins($('search').value));
+$('results').addEventListener('click', e => {
+  const d = e.target.closest('div[data-b]');
+  if(!d) return;
+  $('search').value = d.dataset.b;
+  $('results').hidden = true;
+  load(d.dataset.b);
+});
+document.addEventListener('click', e => {
+  if(!e.target.closest('#sw')) $('results').hidden = true;
+});
 
-['1m','5m','15m','1h','4h','1d'].forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('interval').appendChild(o);});
-$('interval').value='1h';
-$('interval').addEventListener('change',()=>load(currentBase));
+['1m','5m','15m','1h','4h','1d'].forEach(x => {
+  const o = document.createElement('option');
+  o.value = x;
+  o.textContent = x;
+  $('interval').appendChild(o);
+});
+$('interval').value = '1h';
+$('interval').addEventListener('change', () => load(currentBase));
 
-R.load().then(()=>load('PEPE')).catch(e=>{$('err').textContent='Token listesi: '+e.message;$('err').style.color='#ff6470';});
+// Başlangıçta PEPE'yi yükle
+load('PEPE');
 </script>
 </body>
 </html>
