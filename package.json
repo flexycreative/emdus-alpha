@@ -1,0 +1,10 @@
+{
+  "name": "emdus-alpha",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/",
+    "dev": "npx serve docs -l 5500"
+  },
+  "devDependencies": {}
+}
