@@ -8,7 +8,8 @@ const up = s => String(s || '').toLocaleUpperCase('en-US').replace(/İ/g, 'I');
 export function normalizeToken(x) {
   if (!x) return null;
   const rawSym = up(x.symbol);
-  const id     = x.alphaId ?? x.alpha_id ?? x.tokenId ?? x.id;
+  const rawId  = x.alphaId ?? x.alpha_id ?? x.tokenId ?? x.id;
+  const id     = String(rawId || '').replace(/^ALPHA_/i, '').replace(/[^0-9]/g, '');
   const quote  = up(x.quoteAsset || '').replace(/[^A-Z]/g, '');
   const baseA  = up(x.baseAsset || '');
 
@@ -28,7 +29,7 @@ export function normalizeToken(x) {
 
   return {
     base, quote: q, full,
-    id: String(id ?? ''),
+    id: String(id),
     name: x.name ? String(x.name) : '',
     chainId: x.chainId ? String(x.chainId) : null,
     contract: x.contractAddress ? String(x.contractAddress) : null,
