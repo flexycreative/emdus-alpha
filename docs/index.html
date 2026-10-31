@@ -7,22 +7,27 @@
 <style>
 body{background:#0b0c0e;color:#e8eaed;font-family:monospace;margin:0;padding:12px;font-size:13px}
 h1{font-size:15px;color:#ffa21a;margin:0 0 10px}
-input,select{background:#15171a;color:#fff;border:1px solid #2a2e33;padding:10px;font-size:16px;width:100%;margin-bottom:8px;border-radius:3px;box-sizing:border-box}
-#results{background:#15171a;border:1px solid #2a2e33;max-height:300px;overflow:auto;margin-bottom:8px;border-radius:3px}
-#results div{padding:12px;border-bottom:1px solid #24282d;cursor:pointer}
-#results div:active{background:#ffa21a;color:#111}
+#sw{position:relative;margin-bottom:8px}
+input,select{background:#15171a;color:#fff;border:1px solid #2a2e33;padding:10px;font-size:16px;width:100%;border-radius:3px;box-sizing:border-box}
+#results{position:absolute;top:100%;left:0;right:0;margin-top:2px;background:#15171a;border:1px solid #2a2e33;max-height:60vh;overflow:auto;-webkit-overflow-scrolling:touch;z-index:50;border-radius:3px;box-shadow:0 4px 12px rgba(0,0,0,.6)}
+#results>div{padding:12px;border-bottom:1px solid #24282d;cursor:pointer}
+#results>div:active{background:#ffa21a;color:#111}
+#results .cnt{padding:6px 10px;font-size:11px;color:#9aa1a9;background:#0b0c0e;position:sticky;top:0;border-bottom:1px solid #24282d;z-index:1}
+#results .cnt:active{background:#0b0c0e;color:#9aa1a9}
 table{width:100%;border-collapse:collapse;background:#15171a;border:1px solid #2a2e33;margin-top:8px}
 th,td{padding:6px 8px;text-align:right;border-bottom:1px solid #24282d}
 th:first-child,td:first-child{text-align:left}
 th{color:#9aa1a9;font-size:11px}
 .p{color:#3ddc97}.n{color:#ff6470}.na{color:#9aa1a9}
-#err{color:#ff6470;margin:8px 0;font-size:12px;min-height:20px}
+#err{color:#ff6470;margin:8px 0;font-size:12px;min-height:20px;line-height:1.4;word-break:break-word}
 </style>
 </head>
 <body>
 <h1>EMDUS ALPHA</h1>
-<input id="search" placeholder="Coin ara: PEPE, BTC, 175">
-<div id="results" hidden></div>
+<div id="sw">
+  <input id="search" placeholder="Coin ara (PEPE, BTC, 175...)" autocomplete="off" autocapitalize="characters">
+  <div id="results" hidden></div>
+</div>
 <select id="interval"></select>
 <div id="err"></div>
 <table id="tbl"><tr><td class="na" colspan="4">Coin seçin</td></tr></table>
@@ -33,6 +38,8 @@ const KEY='ory_at_JQ5gyIeUfz3K3hQR1d8J-wCABSs4YIBPs0h5aTJzBfg.4IFGicm7D7DhS05lij
 const URL='https://graphql.bitquery.io/';
 const R=new AlphaRegistry({storage:{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v)}});
 const $=id=>document.getElementById(id);
+const up=s=>String(s||'').toLocaleUpperCase('en-US').replace(/İ/g,'I');
+let currentBase='PEPE';
 
 function fmt(x){
   if(x==null||isNaN(x))return'—';
@@ -51,11 +58,7 @@ function networkOf(c){
 
 async function bq(network,token,limit){
   const q='query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
-  const r=await fetch(URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},
-    body:JSON.stringify({query:q,variables:{n:network,t:token,l:limit}})
-  });
+  const r=await fetch(URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},body:JSON.stringify({query:q,variables:{n:network,t:token,l:limit}})});
   if(!r.ok)throw new Error('HTTP '+r.status);
   const j=await r.json();
   if(j.errors)throw new Error(j.errors[0].message);
@@ -72,9 +75,9 @@ async function load(base){
   $('err').textContent='Yükleniyor...';
   $('err').style.color='#ffb547';
   try{
-    if(!R.byBase.size)await R.load();
     const tok=R.resolve(base);
     if(!tok)throw new Error('Bulunamadı: '+base);
+    currentBase=tok.base;
     const net=networkOf(tok.chainId);
     if(!net)throw new Error('Zincir: '+tok.chainId);
     const trades=await bq(net,tok.contract,1000);
@@ -97,7 +100,7 @@ async function load(base){
       h+='<tr><td>'+n+'</td><td class="'+c+'">'+fmt(sum)+'</td><td class="'+c+'">'+fmt(mx)+'</td><td class="'+c+'">'+(Math.round(ad*10)/10)+'%</td></tr>';
     }
     $('tbl').innerHTML=h;
-    $('err').textContent='✓ '+trades.length+' işlem · '+arr.length+' bar · '+net.toUpperCase();
+    $('err').textContent='✓ '+trades.length+' işlem · '+arr.length+' bar · '+net.toUpperCase()+' · '+tok.base;
     $('err').style.color='#3ddc97';
   }catch(e){
     $('err').textContent=e.message;
@@ -105,18 +108,33 @@ async function load(base){
   }
 }
 
-['1m','5m','15m','1h','4h','1d'].forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('interval').appendChild(o);});
-$('interval').value='1h';
-$('interval').addEventListener('change',()=>load($('search').value));
-
-$('search').addEventListener('input',async()=>{
-  const q=$('search').value.toUpperCase().trim();
-  if(!q){$('results').hidden=true;return;}
-  if(!R.byBase.size)await R.load();
-  const l=R.symbols().filter(t=>t.base.includes(q)||(t.name||'').toUpperCase().includes(q)||t.id===q).slice(0,30);
-  $('results').innerHTML=l.map(t=>'<div data-b="'+t.base+'"><b>'+t.base+'</b> - '+(t.name||'')+' ('+t.full+')</div>').join('')||'<div>Yok</div>';
+function showCoins(q){
+  if(!R.byBase.size){
+    $('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Token listesi yükleniyor...</div>';
+    $('results').hidden=false;
+    return;
+  }
+  const query=up(q).trim();
+  const all=R.symbols();
+  const list=query?all.filter(t=>t.base.includes(query)||up(t.name).includes(query)||t.id===query||t.full.includes(query)):all;
+  if(!list.length){
+    $('results').innerHTML='<div style="padding:12px;color:#9aa1a9">Sonuç yok</div>';
+    $('results').hidden=false;
+    return;
+  }
+  let html='<div class="cnt">'+list.length+' coin · '+(query?'filtre: '+query:'tümü')+'</div>';
+  for(const t of list){
+    const name=t.name?' <small style="color:#9aa1a9">'+t.name+'</small>':'';
+    html+='<div data-b="'+t.base+'"><b>'+t.base+'</b>'+name+' <small style="color:#6b737c">· '+t.full+'</small></div>';
+  }
+  $('results').innerHTML=html;
   $('results').hidden=false;
-});
+}
+
+$('search').addEventListener('focus',()=>showCoins($('search').value));
+$('search').addEventListener('input',()=>showCoins($('search').value));
+$('search').addEventListener('click',()=>showCoins($('search').value));
+
 $('results').addEventListener('click',e=>{
   const d=e.target.closest('div[data-b]');
   if(!d)return;
@@ -125,7 +143,20 @@ $('results').addEventListener('click',e=>{
   load(d.dataset.b);
 });
 
-R.load().then(()=>load('PEPE'));
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#sw'))$('results').hidden=true;
+});
+
+['1m','5m','15m','1h','4h','1d'].forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('interval').appendChild(o);});
+$('interval').value='1h';
+$('interval').addEventListener('change',()=>load(currentBase));
+
+R.load().then(()=>{
+  load('PEPE');
+}).catch(e=>{
+  $('err').textContent='Token listesi yüklenemedi: '+e.message;
+  $('err').style.color='#ff6470';
+});
 </script>
 </body>
 </html>
