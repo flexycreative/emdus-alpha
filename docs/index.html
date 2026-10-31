@@ -2,333 +2,130 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0a0c10">
-<title>EMDUS Alpha · Gerçek Takas</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EMDUS Alpha</title>
 <style>
-:root{--bg:#0b0c0e;--panel:#15171a;--alt:#1a1d21;--line:#24282d;--frame:#2a2e33;--fg:#e8eaed;--sub:#9aa1a9;--amb:#ffa21a;--g:#3ddc97;--r:#ff6470;--gbg:#123524;--rbg:#3a161b;--y:#ffb547}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums;touch-action:manipulation}
-main{max-width:520px;margin:0 auto;padding:14px 12px}
-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
-h1{font-size:15px;margin:0;letter-spacing:.04em;color:var(--amb)}
-.clock{font-size:12px;color:var(--fg)}
-.search-wrap{margin-bottom:10px;position:relative}
-#search{width:100%;background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:12px;font:inherit;font-size:16px}
-#results{position:absolute;top:100%;left:0;right:0;margin-top:2px;background:var(--panel);border:1px solid var(--frame);border-radius:3px;max-height:40vh;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.6)}
-#results .item{padding:14px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:15px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,162,26,.3)}
-#results .item:active{background:var(--amb);color:#111}
-#results .item b{font-weight:700}
-#results .item small{color:var(--sub);font-size:11px}
-#results .item:active small{color:#333}
-#results .msg{padding:14px 12px;color:var(--sub);text-align:center}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
-.controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.06em}
-select{background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:8px;font:inherit;font-size:16px;width:100%}
-.err{color:var(--r);margin:10px 0;white-space:pre-wrap;font-size:12px;line-height:1.5}
-.box{background:var(--panel);border:1px solid var(--frame);margin-bottom:12px}
-.band{background:var(--amb);color:#111;font-weight:800;padding:5px 9px;font-size:12px;letter-spacing:.08em;display:flex;justify-content:space-between}
-.band #price{font-weight:400;font-size:11px}
-table{width:100%;border-collapse:collapse}
-th{color:var(--sub);font-weight:500;font-size:10.5px;letter-spacing:.08em;text-align:right;padding:5px 9px}
-td{padding:4px 9px;text-align:right;white-space:nowrap}
+body{background:#0b0c0e;color:#e8eaed;font-family:monospace;margin:0;padding:12px;font-size:13px}
+h1{font-size:15px;color:#ffa21a;margin:0 0 10px}
+input,select{background:#15171a;color:#fff;border:1px solid #2a2e33;padding:10px;font-size:16px;width:100%;margin-bottom:8px;border-radius:3px;box-sizing:border-box}
+#results{background:#15171a;border:1px solid #2a2e33;max-height:300px;overflow:auto;margin-bottom:8px;border-radius:3px}
+#results div{padding:12px;border-bottom:1px solid #24282d;cursor:pointer}
+#results div:active{background:#ffa21a;color:#111}
+table{width:100%;border-collapse:collapse;background:#15171a;border:1px solid #2a2e33;margin-top:8px}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid #24282d}
 th:first-child,td:first-child{text-align:left}
-tbody tr:nth-child(even){background:var(--alt)}
-.p{color:var(--g)} .n{color:var(--r)} .na{color:var(--sub)} .a{color:var(--y)}
-.lbl{color:var(--sub);letter-spacing:.04em}
-tr.mb{background:var(--gbg)!important} tr.mbn{background:var(--rbg)!important}
-.blk{display:inline-block;height:12px;vertical-align:middle}
-.wide{text-align:center!important}
-.src{color:var(--sub);font-size:10.5px;letter-spacing:.1em;text-align:center;padding:5px 8px;line-height:1.5}
-#cvd{display:block;width:100%;height:220px}
-.cvdinfo{font-size:12px;color:var(--sub);padding:6px 9px}
-[hidden]{display:none!important}
+th{color:#9aa1a9;font-size:11px}
+.p{color:#3ddc97}.n{color:#ff6470}.na{color:#9aa1a9}
+#err{color:#ff6470;margin:8px 0;font-size:12px;min-height:20px}
 </style>
 </head>
 <body>
-<main>
-<header><h1>EMDUS ALPHA · GERÇEK TAKAS</h1><span class="clock" id="clock">--:--:--</span></header>
-
-<div class="search-wrap">
-  <input id="search" placeholder="Coin ara: PEPE, BTC, 175…" autocomplete="off" spellcheck="false" autocapitalize="characters">
-  <div id="results" hidden></div>
-</div>
-
-<div class="controls">
-  <label>Zaman dilimi <select id="interval"></select></label>
-</div>
-
-<div id="err" class="err"></div>
-<div class="box">
-  <div class="band"><span>TAKAS (Zincir Üstü)</span><span id="price"></span></div>
-  <table id="tbl"><tr><td class="wide na" colspan="4">Coin seçin</td></tr></table>
-  <div id="src" class="src"></div>
-</div>
-<div class="box">
-  <div class="band"><span>CVD · EMA20/50</span></div>
-  <canvas id="cvd"></canvas>
-  <div id="cvdinfo" class="cvdinfo"></div>
-  <table id="mtf"></table>
-</div>
-</main>
+<h1>EMDUS ALPHA</h1>
+<input id="search" placeholder="Coin ara: PEPE, BTC, 175">
+<div id="results" hidden></div>
+<select id="interval"></select>
+<div id="err"></div>
+<table id="tbl"><tr><td class="na" colspan="4">Coin seçin</td></tr></table>
 <script type="module">
 import { AlphaRegistry } from './alpha.js';
 
-const BITQUERY_API_KEY = 'ory_at_JQ5gyIeUfz3K3hQR1d8J-wCABSs4YIBPs0h5aTJzBfg.4IFGicm7D7DhS05lij7EMNhJIxTkJ3jMVmElYmBEsQQ';
+const KEY='ory_at_JQ5gyIeUfz3K3hQR1d8J-wCABSs4YIBPs0h5aTJzBfg.4IFGicm7D7DhS05lij7EMNhJIxTkJ3jMVmElYmBEsQQ';
+const URL='https://graphql.bitquery.io/';
+const R=new AlphaRegistry({storage:{get:k=>localStorage.getItem(k),set:(k,v)=>localStorage.setItem(k,v)}});
+const $=id=>document.getElementById(id);
 
-const $ = id => document.getElementById(id);
-const up = s => String(s||'').toLocaleUpperCase('en-US').replace(/İ/g,'I');
-const fmtVol = x => { if (x==null || Number.isNaN(x)) return '—'; const a=Math.abs(x), r1=y=>(Math.round(y*10)/10).toFixed(1).replace(/\.?0+$/,''); if(a>=1e12)return r1(x/1e12)+'T'; if(a>=1e9)return r1(x/1e9)+'B'; if(a>=1e6)return r1(x/1e6)+'M'; if(a>=1e3)return r1(x/1e3)+'K'; return r1(x); };
-const fmtPct = x => x==null ? '—' : (Math.round(x*10)/10)+'%';
-const cls = p => p==null ? 'na' : p ? 'p' : 'n';
-const pos = x => x==null ? null : x>=0;
+function fmt(x){
+  if(x==null||isNaN(x))return'—';
+  const a=Math.abs(x),f=y=>(Math.round(y*10)/10);
+  if(a>=1e9)return f(x/1e9)+'B';
+  if(a>=1e6)return f(x/1e6)+'M';
+  if(a>=1e3)return f(x/1e3)+'K';
+  return f(x);
+}
 
-const ALPHA = new AlphaRegistry({ storage: { get: k=>localStorage.getItem(k), set:(k,v)=>localStorage.setItem(k,v) } });
+function networkOf(c){
+  c=String(c||'').toUpperCase();
+  const m={'CT_195':'bsc','56':'bsc','CT_1':'eth','1':'eth','CT_137':'polygon','137':'polygon','CT_8453':'base','8453':'base','CT_42161':'arbitrum','42161':'arbitrum'};
+  return m[c]||null;
+}
 
-const BQ_URL = 'https://graphql.bitquery.io/';
-
-async function fetchBitqueryTrades(network, tokenAddress, limit) {
-  if (!BITQUERY_API_KEY || BITQUERY_API_KEY.length < 20) throw new Error('Bitquery API anahtarı eksik.');
-
-  const query = `
-    query($network: evm_network!, $token: String!, $limit: Int!) {
-      EVM(network: $network, dataset: combined) {
-        DEXTradeByTokens(
-          limit: {count: $limit}
-          orderBy: {descending: Block_Time}
-          where: {Trade: {Currency: {SmartContract: {is: $token}}}}
-        ) {
-          Block { Time }
-          Trade {
-            AmountInUSD
-            Side { Type }
-          }
-        }
-      }
-    }
-  `;
-
-  const variables = { network, token: tokenAddress, limit };
-
-  const response = await fetch(BQ_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BITQUERY_API_KEY}` },
-    body: JSON.stringify({ query, variables })
+async function bq(network,token,limit){
+  const q='query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:combined){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Trade{AmountInUSD Side{Type}}}}}';
+  const r=await fetch(URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+KEY},
+    body:JSON.stringify({query:q,variables:{n:network,t:token,l:limit}})
   });
-
-  if (!response.ok) {
-    const errBody = await response.text();
-    throw new Error(`Bitquery HTTP ${response.status}: ${errBody.slice(0, 300)}`);
-  }
-
-  const result = await response.json();
-  if (result.errors) throw new Error(`Bitquery Hatası: ${result.errors[0].message}`);
-
-  const trades = result.data?.EVM?.DEXTradeByTokens || [];
-  return trades.map(t => {
-    const time = new Date(t.Block?.Time).getTime();
-    const usd = parseFloat(t.Trade?.AmountInUSD || 0);
-    const side = String(t.Trade?.Side?.Type || '').toLowerCase();
-    if (!(time > 0) || !(usd > 0) || (side !== 'buy' && side !== 'sell')) return null;
-    return { time, buyUSD: side === 'buy' ? usd : 0, sellUSD: side === 'sell' ? usd : 0 };
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  if(j.errors)throw new Error(j.errors[0].message);
+  return(j.data?.EVM?.DEXTradeByTokens||[]).map(x=>{
+    const t=new Date(x.Block?.Time).getTime();
+    const u=parseFloat(x.Trade?.AmountInUSD||0);
+    const s=String(x.Trade?.Side?.Type||'').toLowerCase();
+    if(!(t>0)||!(u>0))return null;
+    return{t,b:s==='buy'?u:0,s:s==='sell'?u:0};
   }).filter(Boolean);
 }
 
-function aggregateToBars(trades, intervalMs) {
-  const bars = new Map();
-  for (const t of trades) {
-    const barTime = Math.floor(t.time / intervalMs) * intervalMs;
-    if (!bars.has(barTime)) bars.set(barTime, { time: barTime, buy: 0, sell: 0, volume: 0 });
-    const bar = bars.get(barTime);
-    bar.buy += t.buyUSD;
-    bar.sell += t.sellUSD;
-    bar.volume += t.buyUSD + t.sellUSD;
-  }
-  return [...bars.values()].sort((a, b) => a.time - b.time);
-}
-
-const IV_MS = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '1h': 3600e3, '4h': 14400e3, '1d': 86400e3 };
-
-function windowStats(deltas, vols, n) {
-  if (n<=0 || n>deltas.length) return [null,null,null];
-  let total=0, mx=null, vsum=0;
-  for (let i=0;i<n;i++){ total+=deltas[i]; vsum+=vols[i]; if (mx===null||total>mx) mx=total; }
-  return [total, mx, vsum>0 ? total/vsum*100 : 0];
-}
-function emaArr(x,n){ const a=2/(n+1), o=new Array(x.length); for(let i=0;i<x.length;i++) o[i]=i===0?x[0]:a*x[i]+(1-a)*o[i-1]; return o; }
-function cvdSeries(bars){
-  const cvd=[]; let s=0;
-  bars.forEach(b=>{ s += b.buy - b.sell; cvd.push(s); });
-  return { t: bars.map(b=>b.time), cvd, e20: emaArr(cvd,20), e50: emaArr(cvd,50) };
-}
-
-function networkOf(chainId) {
-  if (chainId === '56') return 'bsc';
-  if (chainId === '1') return 'eth';
-  if (chainId === '137') return 'polygon';
-  if (chainId === '8453') return 'base';
-  if (chainId === '42161') return 'arbitrum';
-  return null;
-}
-
-async function compute(token, interval) {
-  const network = networkOf(token.chainId);
-  if (!network) throw new Error(`Desteklenmeyen zincir: ${token.chainId}.`);
-
-  const trades = await fetchBitqueryTrades(network, token.contract, 1000);
-  if (!trades.length) throw new Error(`Bu token için ${network} ağında işlem bulunamadı.`);
-
-  const intervalMs = IV_MS[interval] || IV_MS['1h'];
-  const bars = aggregateToBars(trades, intervalMs);
-  if (bars.length < 2) throw new Error('Yeterli bar verisi yok.');
-
-  const br = bars.slice().reverse();
-  const deltas = br.map(b => b.buy - b.sell);
-  const vols = br.map(b => b.volume);
-
-  const WINS = [1,5,10,14,20,50,100,200];
-  const rows = WINS.map(n => {
-    const [t,m,a] = windowStats(deltas, vols, n);
-    return { bar:String(n), takas:t, max:m, ad:a };
-  });
-
-  const mbVal = rows[4].takas;
-  const recent = br.slice(0, 20);
-  const totalBuy = recent.reduce((s,b) => s + b.buy, 0);
-  const totalSell = recent.reduce((s,b) => s + b.sell, 0);
-  const flow = totalBuy + totalSell;
-  const buyPct = flow > 0 ? totalBuy / flow * 100 : 50;
-
-  return {
-    token, rows, mbVal,
-    buyInt: Math.round(buyPct),
-    sellInt: 100 - Math.round(buyPct),
-    cvd: cvdSeries(bars),
-    nbars: bars.length,
-  };
-}
-
-function render(d) {
-  let h = '<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
-  d.rows.forEach(r => {
-    h += `<tr><td>${r.bar}</td><td class="${cls(pos(r.takas))}">${fmtVol(r.takas)}</td><td class="${cls(pos(r.max))}">${fmtVol(r.max)}</td><td class="${cls(pos(r.ad))}">${fmtPct(r.ad)}</td></tr>`;
-  });
-  h += `<tr class="${pos(d.mbVal) ? 'mb' : 'mbn'}"><td class="lbl" colspan="3">MARKET BASKISI (20 Bar)</td><td class="${cls(pos(d.mbVal))}">${fmtVol(d.mbVal)}</td></tr>`;
-  const bw = Math.round(d.buyInt*0.9), sw = 90-bw;
-  h += `<tr><td class="p">${d.buyInt}%</td><td colspan="2" class="wide"><span class="blk" style="background:var(--g);width:${bw}px"></span>&nbsp;<span class="blk" style="background:var(--r);width:${sw}px"></span></td><td class="n">${d.sellInt}%</td></tr>`;
-  $('tbl').innerHTML = h;
-  $('src').textContent = `ZİNCİR ÜSTÜ VERİ: ${d.nbars} BAR · ${d.token.full}`;
-  $('price').textContent = d.token.base;
-  drawCvd(d.cvd);
-}
-
-function drawCvd(c) {
-  const cv = $('cvd'), dpr = window.devicePixelRatio||1, W = cv.clientWidth, H = cv.clientHeight;
-  cv.width = W*dpr; cv.height = H*dpr;
-  const g = cv.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
-  if (!c || c.cvd.length < 3) return;
-  const N = c.cvd.length, s0 = Math.max(1, N-100), n = N-s0;
-  const padL=4, padR=52, padT=14, padB=14;
-  let lo=Infinity, hi=-Infinity;
-  for (let i=s0;i<N;i++) for (const v of [c.cvd[i], c.cvd[i-1], c.e20[i], c.e50[i]]) { if (v<lo) lo=v; if (v>hi) hi=v; }
-  if (hi===lo) { hi+=1; lo-=1; }
-  const slot = (W-padL-padR)/n, X = i => padL+(i-s0+0.5)*slot, Y = v => padT+(hi-v)/(hi-lo)*(H-padT-padB);
-  g.font='10px ui-monospace,monospace'; g.textBaseline='middle';
-  for (let k=0;k<=4;k++){ const v=lo+(hi-lo)*k/4, y=Y(v); g.strokeStyle='#24282d'; g.beginPath(); g.moveTo(padL,y); g.lineTo(W-padR,y); g.stroke(); g.fillStyle='#9aa1a9'; g.fillText(fmtVol(v), W-padR+4, y); }
-  const bw = Math.max(1, slot*0.7);
-  for (let i=s0;i<N;i++){ const o=c.cvd[i-1], cl=c.cvd[i]; g.fillStyle = cl>=o?'#3ddc97':'#ff6470'; const yT=Y(Math.max(o,cl)), yB=Y(Math.min(o,cl)); g.fillRect(X(i)-bw/2, yT, bw, Math.max(1,yB-yT)); }
-  const line = (arr,col)=>{ g.strokeStyle=col; g.lineWidth=1.4; g.beginPath(); for (let i=s0;i<N;i++){ const x=X(i), y=Y(arr[i]); i===s0?g.moveTo(x,y):g.lineTo(x,y); } g.stroke(); };
-  line(c.e50,'#ff9f1c'); line(c.e20,'#ffd200');
-}
-
-async function renderMtf(token) {
-  const network = networkOf(token.chainId);
-  if (!network) { $('mtf').innerHTML = '<tr><td class="wide na" colspan="6">Ağ desteklenmiyor</td></tr>'; return; }
-  const ivs = [['5m','5DK'],['15m','15DK'],['1h','1SA'],['4h','4SA'],['1d','GÜN']];
-  const out = {};
-  await Promise.all(ivs.map(async ([iv]) => {
-    try {
-      const trades = await fetchBitqueryTrades(network, token.contract, 300);
-      const bars = aggregateToBars(trades, IV_MS[iv]);
-      out[iv] = cvdSeries(bars);
-    } catch(e){ out[iv]=null; }
-  }));
-  let h = '<tr><th></th>' + ivs.map(x=>`<th>${x[1]}</th>`).join('') + '</tr>';
-  h += '<tr><td class="lbl">FAZ</td>' + ivs.map(([iv]) => {
-    const c = out[iv]; if (!c) return '<td class="na">—</td>';
-    const n = c.cvd.length-1, b = c.cvd[n]>c.e20[n]&&c.e20[n]>c.e50[n], s = c.cvd[n]<c.e20[n]&&c.e20[n]<c.e50[n];
-    return `<td class="${b?'p':s?'n':'na'}">${b?'BİRİKİM':s?'DAĞITIM':'—'}</td>`;
-  }).join('') + '</tr>';
-  $('mtf').innerHTML = h;
-}
-
-['1m','5m','15m','1h','4h','1d'].forEach(iv => { const o=document.createElement('option'); o.value=iv; o.textContent=iv; $('interval').appendChild(o); });
-$('interval').value = localStorage.getItem('iv') || '1h';
-
-let ALL = [];
-async function ensureList() {
-  if (ALL.length) return;
-  try { await ALPHA.load(); ALL = ALPHA.symbols(); }
-  catch(e){ $('err').textContent = 'Liste: '+e.message; }
-}
-
-function filterResults() {
-  const q = up($('search').value).trim();
-  if (!q) { $('results').hidden = true; return; }
-  if (!ALL.length) { $('results').innerHTML = '<div class="msg">Liste yükleniyor…</div>'; $('results').hidden = false; return; }
-  const list = ALL.filter(t => t.base.includes(q) || up(t.name).includes(q) || t.id===q || t.full.includes(q)).slice(0, 50);
-  if (!list.length) { $('results').innerHTML = '<div class="msg">Eşleşme yok</div>'; $('results').hidden = false; return; }
-  $('results').innerHTML = list.map(t => `<div class="item" data-b="${t.base}"><b>${t.base}</b> <small>${t.name||''} · ${t.full}</small></div>`).join('');
-  $('results').hidden = false;
-}
-$('search').addEventListener('input', filterResults);
-$('search').addEventListener('focus', () => { if ($('search').value) filterResults(); });
-$('results').addEventListener('click', e => {
-  const item = e.target.closest('.item[data-b]');
-  if (!item) return;
-  selectCoin(item.dataset.b);
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('.search-wrap')) $('results').hidden = true;
-});
-
-async function selectCoin(base) {
-  $('search').value = base;
-  $('results').hidden = true;
-  $('search').blur();
-  await run(base);
-}
-
-async function run(base) {
-  const input = base || $('search').value.trim();
-  if (!input) return;
-  await ensureList();
-  const tok = ALPHA.resolve(input);
-  if (!tok) { $('err').textContent = 'Alpha listesinde bulunamadı: '+input; return; }
-  if (!tok.contract) { $('err').textContent = 'Bu token için kontrat adresi yok.'; return; }
-  $('err').style.color = 'var(--y)';
-  $('err').textContent = 'Zincir üstü veriler çekiliyor... (birkaç saniye)';
-  const iv = $('interval').value;
-  try {
-    const d = await compute(tok, iv);
-    $('err').textContent = ''; $('err').style.color = 'var(--r)';
-    render(d);
-    renderMtf(tok).catch(()=>{});
-  } catch (e) {
-    $('err').style.color = 'var(--r)';
-    $('err').textContent = e.message;
+async function load(base){
+  $('err').textContent='Yükleniyor...';
+  $('err').style.color='#ffb547';
+  try{
+    if(!R.byBase.size)await R.load();
+    const tok=R.resolve(base);
+    if(!tok)throw new Error('Bulunamadı: '+base);
+    const net=networkOf(tok.chainId);
+    if(!net)throw new Error('Zincir: '+tok.chainId);
+    const trades=await bq(net,tok.contract,1000);
+    if(!trades.length)throw new Error('İşlem yok: '+net);
+    const iv={'1m':60e3,'5m':300e3,'15m':900e3,'1h':3600e3,'4h':14400e3,'1d':86400e3}[$('interval').value]||3600e3;
+    const m=new Map();
+    for(const x of trades){
+      const k=Math.floor(x.t/iv)*iv;
+      if(!m.has(k))m.set(k,{b:0,s:0});
+      const o=m.get(k);o.b+=x.b;o.s+=x.s;
+    }
+    const arr=[...m.entries()].sort((a,b)=>b[0]-a[0]).map(([t,o])=>({t,d:o.b-o.s,v:o.b+o.s}));
+    if(arr.length<2)throw new Error('Yetersiz bar');
+    let h='<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
+    for(const n of[1,5,10,14,20,50,100,200]){
+      let sum=0,mx=null,vs=0;
+      for(let i=0;i<Math.min(n,arr.length);i++){sum+=arr[i].d;vs+=arr[i].v;if(mx===null||sum>mx)mx=sum;}
+      const ad=vs>0?sum/vs*100:0;
+      const c=sum>=0?'p':'n';
+      h+='<tr><td>'+n+'</td><td class="'+c+'">'+fmt(sum)+'</td><td class="'+c+'">'+fmt(mx)+'</td><td class="'+c+'">'+(Math.round(ad*10)/10)+'%</td></tr>';
+    }
+    $('tbl').innerHTML=h;
+    $('err').textContent='✓ '+trades.length+' işlem · '+arr.length+' bar · '+net.toUpperCase();
+    $('err').style.color='#3ddc97';
+  }catch(e){
+    $('err').textContent=e.message;
+    $('err').style.color='#ff6470';
   }
 }
 
-$('interval').addEventListener('change', () => { localStorage.setItem('iv', $('interval').value); run(); });
-setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('tr-TR'); }, 1000);
+['1m','5m','15m','1h','4h','1d'].forEach(x=>{const o=document.createElement('option');o.value=x;o.textContent=x;$('interval').appendChild(o);});
+$('interval').value='1h';
+$('interval').addEventListener('change',()=>load($('search').value));
 
-ensureList().then(() => {
-  if (ALPHA.resolve('PEPE')) {
-    $('search').value = 'PEPE';
-    run('PEPE');
-  }
+$('search').addEventListener('input',async()=>{
+  const q=$('search').value.toUpperCase().trim();
+  if(!q){$('results').hidden=true;return;}
+  if(!R.byBase.size)await R.load();
+  const l=R.symbols().filter(t=>t.base.includes(q)||(t.name||'').toUpperCase().includes(q)||t.id===q).slice(0,30);
+  $('results').innerHTML=l.map(t=>'<div data-b="'+t.base+'"><b>'+t.base+'</b> - '+(t.name||'')+' ('+t.full+')</div>').join('')||'<div>Yok</div>';
+  $('results').hidden=false;
 });
+$('results').addEventListener('click',e=>{
+  const d=e.target.closest('div[data-b]');
+  if(!d)return;
+  $('search').value=d.dataset.b;
+  $('results').hidden=true;
+  load(d.dataset.b);
+});
+
+R.load().then(()=>load('PEPE'));
 </script>
 </body>
 </html>
