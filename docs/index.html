@@ -88,33 +88,20 @@ const ALPHA = new AlphaRegistry({ storage: { get: k=>localStorage.getItem(k), se
 const BQ_URL = 'https://graphql.bitquery.io/';
 
 async function fetchBitqueryTrades(network, tokenAddress, limit) {
-  if (!BITQUERY_API_KEY || BITQUERY_API_KEY.length < 20) {
-    throw new Error('Bitquery API anahtarı eksik veya geçersiz.');
-  }
+  if (!BITQUERY_API_KEY || BITQUERY_API_KEY.length < 20) throw new Error('Bitquery API anahtarı eksik.');
 
   const query = `
-    query MyQuery($network: evm_network!, $token: String!, $limit: Int!) {
+    query($network: evm_network!, $token: String!, $limit: Int!) {
       EVM(network: $network, dataset: combined) {
-        DEXTrades(
+        DEXTradeByTokens(
           limit: {count: $limit}
           orderBy: {descending: Block_Time}
-          where: {
-            any: [
-              {Trade: {Buy: {Currency: {SmartContract: {is: $token}}}}}
-              {Trade: {Sell: {Currency: {SmartContract: {is: $token}}}}}
-            ]
-          }
+          where: {Trade: {Currency: {SmartContract: {is: $token}}}}
         ) {
           Block { Time }
           Trade {
-            Buy {
-              AmountInUSD
-              Currency { Symbol SmartContract }
-            }
-            Sell {
-              AmountInUSD
-              Currency { Symbol SmartContract }
-            }
+            AmountInUSD
+            Side { Type }
           }
         }
       }
@@ -125,10 +112,7 @@ async function fetchBitqueryTrades(network, tokenAddress, limit) {
 
   const response = await fetch(BQ_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${BITQUERY_API_KEY}`
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${BITQUERY_API_KEY}` },
     body: JSON.stringify({ query, variables })
   });
 
@@ -138,28 +122,16 @@ async function fetchBitqueryTrades(network, tokenAddress, limit) {
   }
 
   const result = await response.json();
+  if (result.errors) throw new Error(`Bitquery Hatası: ${result.errors[0].message}`);
 
-  if (result.errors) {
-    throw new Error(`Bitquery Hatası: ${result.errors[0].message}`);
-  }
-
-  const trades = result.data?.EVM?.DEXTrades || [];
-  const tokenLC = String(tokenAddress).toLowerCase();
-
+  const trades = result.data?.EVM?.DEXTradeByTokens || [];
   return trades.map(t => {
-    const buyAddr = String(t.Trade?.Buy?.Currency?.SmartContract || '').toLowerCase();
-    const sellAddr = String(t.Trade?.Sell?.Currency?.SmartContract || '').toLowerCase();
-    const buyUSD = parseFloat(t.Trade?.Buy?.AmountInUSD || 0);
-    const sellUSD = parseFloat(t.Trade?.Sell?.AmountInUSD || 0);
-    const isBuy = buyAddr === tokenLC;
-    const isSell = sellAddr === tokenLC;
-    const usd = isBuy ? buyUSD : (isSell ? sellUSD : 0);
-    return {
-      time: new Date(t.Block?.Time).getTime(),
-      buyUSD: isBuy ? usd : 0,
-      sellUSD: isSell ? usd : 0,
-    };
-  }).filter(t => t.time > 0 && (t.buyUSD > 0 || t.sellUSD > 0));
+    const time = new Date(t.Block?.Time).getTime();
+    const usd = parseFloat(t.Trade?.AmountInUSD || 0);
+    const side = String(t.Trade?.Side?.Type || '').toLowerCase();
+    if (!(time > 0) || !(usd > 0) || (side !== 'buy' && side !== 'sell')) return null;
+    return { time, buyUSD: side === 'buy' ? usd : 0, sellUSD: side === 'sell' ? usd : 0 };
+  }).filter(Boolean);
 }
 
 function aggregateToBars(trades, intervalMs) {
@@ -201,9 +173,9 @@ function networkOf(chainId) {
 
 async function compute(token, interval) {
   const network = networkOf(token.chainId);
-  if (!network) throw new Error(`Desteklenmeyen zincir: ${token.chainId}. Şu an BSC, Ethereum, Polygon, Base, Arbitrum destekli.`);
+  if (!network) throw new Error(`Desteklenmeyen zincir: ${token.chainId}.`);
 
-  const trades = await fetchBitqueryTrades(network, token.contract, 500);
+  const trades = await fetchBitqueryTrades(network, token.contract, 1000);
   if (!trades.length) throw new Error(`Bu token için ${network} ağında işlem bulunamadı.`);
 
   const intervalMs = IV_MS[interval] || IV_MS['1h'];
@@ -228,8 +200,7 @@ async function compute(token, interval) {
   const buyPct = flow > 0 ? totalBuy / flow * 100 : 50;
 
   return {
-    token,
-    rows, mbVal,
+    token, rows, mbVal,
     buyInt: Math.round(buyPct),
     sellInt: 100 - Math.round(buyPct),
     cvd: cvdSeries(bars),
@@ -246,7 +217,6 @@ function render(d) {
   const bw = Math.round(d.buyInt*0.9), sw = 90-bw;
   h += `<tr><td class="p">${d.buyInt}%</td><td colspan="2" class="wide"><span class="blk" style="background:var(--g);width:${bw}px"></span>&nbsp;<span class="blk" style="background:var(--r);width:${sw}px"></span></td><td class="n">${d.sellInt}%</td></tr>`;
   $('tbl').innerHTML = h;
-
   $('src').textContent = `ZİNCİR ÜSTÜ VERİ: ${d.nbars} BAR · ${d.token.full}`;
   $('price').textContent = d.token.base;
   drawCvd(d.cvd);
@@ -278,7 +248,7 @@ async function renderMtf(token) {
   const out = {};
   await Promise.all(ivs.map(async ([iv]) => {
     try {
-      const trades = await fetchBitqueryTrades(network, token.contract, 200);
+      const trades = await fetchBitqueryTrades(network, token.contract, 300);
       const bars = aggregateToBars(trades, IV_MS[iv]);
       out[iv] = cvdSeries(bars);
     } catch(e){ out[iv]=null; }
