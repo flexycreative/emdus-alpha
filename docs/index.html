@@ -8,19 +8,16 @@
 <style>
 :root{--bg:#0b0c0e;--panel:#15171a;--alt:#1a1d21;--line:#24282d;--frame:#2a2e33;--fg:#e8eaed;--sub:#9aa1a9;--amb:#ffa21a;--g:#3ddc97;--r:#ff6470;--gbg:#123524;--rbg:#3a161b;--y:#ffb547}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums;touch-action:manipulation}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums}
 main{max-width:520px;margin:0 auto;padding:14px 12px}
 header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
 h1{font-size:15px;margin:0;letter-spacing:.04em;color:var(--amb)}
 .clock{font-size:12px;color:var(--fg)}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;position:relative}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.06em}
-select,input{background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:8px;font:inherit;font-size:16px;width:100%}
-.sugg{position:absolute;top:100%;left:0;right:0;z-index:100;margin-top:4px;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--frame);border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,.6)}
-.sugg .sg{padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
-.sugg .sg:active{background:var(--amb);color:#111}
-.sugg .sg span{color:var(--sub);font-size:11px;margin-left:6px}
-.sugg .sg:active span{color:#333}
+select{background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:8px;font:inherit;font-size:16px;width:100%}
+.pickbtn{background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:8px;font:inherit;font-size:16px;width:100%;text-align:left;cursor:pointer;font-family:inherit}
+.pickbtn:active{background:var(--alt)}
 .err{color:var(--r);margin:10px 0;white-space:pre-wrap}
 .box{background:var(--panel);border:1px solid var(--frame);margin-bottom:12px}
 .band{background:var(--amb);color:#111;font-weight:800;padding:5px 9px;font-size:12px;letter-spacing:.08em;display:flex;justify-content:space-between}
@@ -39,15 +36,32 @@ tr.mb{background:var(--gbg)!important} tr.mbn{background:var(--rbg)!important}
 #cvd{display:block;width:100%;height:220px}
 .cvdinfo{font-size:12px;color:var(--sub);padding:6px 9px}
 [hidden]{display:none!important}
+
+/* MODAL */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto}
+.modal[hidden]{display:none!important}
+.modal-box{background:var(--panel);border:1px solid var(--frame);border-radius:6px;width:100%;max-width:480px;display:flex;flex-direction:column;max-height:90vh;margin:auto 0}
+.modal-head{display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
+.modal-head input{flex:1;background:var(--bg);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:10px;font:inherit;font-size:16px}
+.modal-head button{background:var(--alt);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:10px 14px;font:inherit;font-size:16px;cursor:pointer}
+.modal-head button:active{background:var(--amb);color:#111}
+.picklist{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1}
+.pickitem{padding:14px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-size:15px;display:flex;justify-content:space-between;gap:8px;align-items:baseline;touch-action:manipulation;-webkit-tap-highlight-color:rgba(255,162,26,.3)}
+.pickitem:active{background:var(--amb);color:#111}
+.pickitem b{font-weight:700}
+.pickitem small{color:var(--sub);font-size:11px}
+.pickitem:active small{color:#333}
 </style>
 </head>
 <body>
 <main>
 <header><h1>EMDUS ALPHA · TAKAS</h1><span class="clock" id="clock">--:--:--</span></header>
 <div class="controls">
-  <label>Coin <input id="symbol" placeholder="PEPE, 175, ALPHA_175USDT" autocomplete="off" spellcheck="false" inputmode="search"></label>
+  <label>Coin
+    <input id="symbol" type="hidden" value="PEPE">
+    <button id="pickBtn" type="button" class="pickbtn">PEPE ▾</button>
+  </label>
   <label>Zaman dilimi <select id="interval"></select></label>
-  <div id="sugg" class="sugg" hidden></div>
 </div>
 <div id="err" class="err"></div>
 <div class="box">
@@ -67,6 +81,17 @@ tr.mb{background:var(--gbg)!important} tr.mbn{background:var(--rbg)!important}
   <table id="chain"></table>
 </div>
 </main>
+
+<div id="pickModal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <input id="pickSearch" placeholder="Coin ara…" autocomplete="off" spellcheck="false" autocapitalize="characters">
+      <button id="pickClose" type="button">✕</button>
+    </div>
+    <div id="pickList" class="picklist"></div>
+  </div>
+</div>
+
 <script type="module">
 import { AlphaRegistry } from './alpha.js';
 
@@ -91,8 +116,6 @@ async function getKlines(full, interval, limit=500) {
   return arr.map(k => ({ t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5], tb:+k[9] }));
 }
 
-// EMDUS gerçek agresör formülü
-// alış = taker buy (k[9]) · satış = hacim − taker buy · fark = 2*tb − v
 function dcuOf(b) {
   const buy  = b.tb;
   const sell = b.v - b.tb;
@@ -262,53 +285,49 @@ const WINS = [1,5,10,14,20,50,100,200];
 const MB_IDX = 4;
 const AVG_LEN = 20;
 
-let ALL = [], PREV = '';
-async function ensureList() { try { await ALPHA.load(); ALL = ALPHA.symbols(); } catch(e){ $('err').textContent = 'Liste: '+e.message; } }
-
-function showSugg() {
-  const q = up($('symbol').value).replace(/\s+/g,''), box = $('sugg');
-  if (!ALL.length) { box.innerHTML = '<div class="sg na">Liste yükleniyor…</div>'; box.hidden=false; return; }
-  let list = !q ? ALL.slice(0,40) : ALL.filter(t => t.base.includes(q) || up(t.name).includes(q) || t.id===q || t.full.includes(q)).slice(0,40);
-  if (!list.length) { box.innerHTML = '<div class="sg na">Eşleşme yok</div>'; box.hidden=false; return; }
-  box.innerHTML = list.map(t => `<div class="sg" data-b="${t.base}">${t.base} <span>${t.name||''} · ${t.full}</span></div>`).join('');
-  box.hidden = false;
+let ALL = [];
+async function ensureList() {
+  if (ALL.length) return;
+  try { await ALPHA.load(); ALL = ALPHA.symbols(); }
+  catch(e){ $('err').textContent = 'Liste: '+e.message; }
 }
 
-let _hit = null;
-$('sugg').addEventListener('pointerdown', e => {
-  const sg = e.target.closest('.sg[data-b]');
-  if (!sg) return;
-  _hit = sg.dataset.b;
-  e.preventDefault();
-}, {passive:false});
-$('sugg').addEventListener('pointerup', e => {
-  if (_hit) { const b = _hit; _hit = null; pickSugg(b); }
-});
-$('sugg').addEventListener('pointercancel', () => { _hit = null; });
+/* ==== COIN SEÇİCİ MODAL ==== */
+function renderPickList() {
+  const q = up($('pickSearch').value).replace(/\s+/g,'');
+  if (!ALL.length) { $('pickList').innerHTML = '<div class="pickitem na">Liste yükleniyor…</div>'; return; }
+  let list = !q ? ALL.slice(0,80) : ALL.filter(t => t.base.includes(q) || up(t.name).includes(q) || t.id===q || t.full.includes(q)).slice(0,80);
+  if (!list.length) { $('pickList').innerHTML = '<div class="pickitem na">Eşleşme yok</div>'; return; }
+  $('pickList').innerHTML = list.map(t => `<div class="pickitem" data-b="${t.base}"><b>${t.base}</b> <small>${t.name||''} · ${t.full}</small></div>`).join('');
+}
+async function openPicker() {
+  $('pickModal').hidden = false;
+  $('pickSearch').value = '';
+  renderPickList();
+  if (!ALL.length) {
+    await ensureList();
+    renderPickList();
+  }
+  setTimeout(() => $('pickSearch').focus(), 150);
+}
+function closePicker() { $('pickModal').hidden = true; }
 
-function pickSugg(b) {
+$('pickBtn').addEventListener('click', openPicker);
+$('pickClose').addEventListener('click', closePicker);
+$('pickSearch').addEventListener('input', renderPickList);
+$('pickList').addEventListener('click', e => {
+  const item = e.target.closest('.pickitem[data-b]');
+  if (!item) return;
+  const b = item.dataset.b;
   $('symbol').value = b;
-  $('sugg').hidden = true;
-  $('symbol').blur();
+  $('pickBtn').textContent = b + ' ▾';
+  closePicker();
   run();
-}
-
-$('symbol').addEventListener('focus', () => {
-  PREV = $('symbol').value;
-  $('symbol').select();
-  ensureList().then(showSugg);
 });
-$('symbol').addEventListener('input', showSugg);
-$('symbol').addEventListener('blur', () => setTimeout(() => {
-  $('sugg').hidden = true;
-  if (!$('symbol').value.trim()) $('symbol').value = PREV;
-}, 800));
-$('symbol').addEventListener('change', run);
-$('interval').addEventListener('change', () => { localStorage.setItem('iv', $('interval').value); run(); });
-document.addEventListener('click', e => {
-  if (!e.target.closest('.controls')) $('sugg').hidden = true;
-});
+$('pickModal').addEventListener('click', e => { if (e.target === $('pickModal')) closePicker(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
 
+/* ==== VERİ YÜKLE ==== */
 async function run() {
   const input = $('symbol').value.trim(); if (!input) return;
   await ensureList();
@@ -324,9 +343,17 @@ async function run() {
   } catch (e) { $('err').textContent = e.message; }
 }
 
+$('interval').addEventListener('change', () => { localStorage.setItem('iv', $('interval').value); run(); });
+
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('tr-TR'); }, 1000);
 
-ensureList().then(() => { if (ALPHA.resolve('PEPE')) { $('symbol').value='PEPE'; run(); } });
+ensureList().then(() => {
+  if (ALPHA.resolve('PEPE')) {
+    $('symbol').value = 'PEPE';
+    $('pickBtn').textContent = 'PEPE ▾';
+    run();
+  }
+});
 </script>
 </body>
 </html>
