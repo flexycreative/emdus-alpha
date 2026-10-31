@@ -8,18 +8,19 @@
 <style>
 :root{--bg:#0b0c0e;--panel:#15171a;--alt:#1a1d21;--line:#24282d;--frame:#2a2e33;--fg:#e8eaed;--sub:#9aa1a9;--amb:#ffa21a;--g:#3ddc97;--r:#ff6470;--gbg:#123524;--rbg:#3a161b;--y:#ffb547}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums;touch-action:manipulation}
 main{max-width:520px;margin:0 auto;padding:14px 12px}
 header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
 h1{font-size:15px;margin:0;letter-spacing:.04em;color:var(--amb)}
 .clock{font-size:12px;color:var(--fg)}
-.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;position:relative}
 .controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.06em}
 select,input{background:var(--panel);color:var(--fg);border:1px solid var(--frame);border-radius:3px;padding:8px;font:inherit;font-size:16px;width:100%}
-.sugg{max-height:280px;overflow-y:auto;background:var(--panel);border:1px solid var(--frame);border-radius:3px;grid-column:1/-1}
-.sugg .sg{padding:10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px}
-.sugg .sg:hover{background:var(--alt)}
+.sugg{position:absolute;top:100%;left:0;right:0;z-index:100;margin-top:4px;max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--frame);border-radius:3px;box-shadow:0 4px 16px rgba(0,0,0,.6)}
+.sugg .sg{padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:14px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+.sugg .sg:active{background:var(--amb);color:#111}
 .sugg .sg span{color:var(--sub);font-size:11px;margin-left:6px}
+.sugg .sg:active span{color:#333}
 .err{color:var(--r);margin:10px 0;white-space:pre-wrap}
 .box{background:var(--panel);border:1px solid var(--frame);margin-bottom:12px}
 .band{background:var(--amb);color:#111;font-weight:800;padding:5px 9px;font-size:12px;letter-spacing:.08em;display:flex;justify-content:space-between}
@@ -44,7 +45,7 @@ tr.mb{background:var(--gbg)!important} tr.mbn{background:var(--rbg)!important}
 <main>
 <header><h1>EMDUS ALPHA · TAKAS</h1><span class="clock" id="clock">--:--:--</span></header>
 <div class="controls">
-  <label>Coin <input id="symbol" placeholder="PEPE, 175, ALPHA_175USDT" autocomplete="off" spellcheck="false"></label>
+  <label>Coin <input id="symbol" placeholder="PEPE, 175, ALPHA_175USDT" autocomplete="off" spellcheck="false" inputmode="search"></label>
   <label>Zaman dilimi <select id="interval"></select></label>
   <div id="sugg" class="sugg" hidden></div>
 </div>
@@ -87,20 +88,16 @@ async function getKlines(full, interval, limit=500) {
   const j = await r.json();
   if (!j || j.success === false) throw new Error('Kline: '+((j&&j.message)||'yanıt geçersiz'));
   const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
-  // [0]=openTime [1]=open [2]=high [3]=low [4]=close [5]=volume [9]=takerBuyBaseVolume
   return arr.map(k => ({ t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5], tb:+k[9] }));
 }
 
-// ============ EMDUS GERÇEK AGRESÖR FORMÜLÜ ============
-// alış  = taker buy (agresör alış)     → k[9]
-// satış = hacim − taker buy             → k[5] − k[9]
-// fark  = alış − satış = 2*tb − v
+// EMDUS gerçek agresör formülü
+// alış = taker buy (k[9]) · satış = hacim − taker buy · fark = 2*tb − v
 function dcuOf(b) {
   const buy  = b.tb;
   const sell = b.v - b.tb;
   return { buy, sell, dcu: buy - sell };
 }
-
 function windowStats(deltas, vols, n) {
   if (n<=0 || n>deltas.length) return [null,null,null];
   let total=0, mx=null, vsum=0;
@@ -128,7 +125,6 @@ async function compute(token, interval, wins, mbIndex, avgLen) {
     const [t,m,a] = windowStats(deltas, vols, n);
     return { bar:String(n), takas:t, max:m, ad:a };
   });
-
   const mbN = wins[mbIndex], mbVal = rows[mbIndex].takas;
 
   const k = Math.min(mbN, br.length);
@@ -262,8 +258,8 @@ async function loadChain(token) {
 ['1m','5m','15m','1h','4h','1d'].forEach(iv => { const o=document.createElement('option'); o.value=iv; o.textContent=iv; $('interval').appendChild(o); });
 $('interval').value = localStorage.getItem('iv') || '1h';
 
-const WINS = [1,5,10,14,20,50,100,200];   // Pine sırası
-const MB_IDX = 4;                          // 20 (varsayılan Market Baskısı)
+const WINS = [1,5,10,14,20,50,100,200];
+const MB_IDX = 4;
 const AVG_LEN = 20;
 
 let ALL = [], PREV = '';
@@ -277,6 +273,41 @@ function showSugg() {
   box.innerHTML = list.map(t => `<div class="sg" data-b="${t.base}">${t.base} <span>${t.name||''} · ${t.full}</span></div>`).join('');
   box.hidden = false;
 }
+
+let _hit = null;
+$('sugg').addEventListener('pointerdown', e => {
+  const sg = e.target.closest('.sg[data-b]');
+  if (!sg) return;
+  _hit = sg.dataset.b;
+  e.preventDefault();
+}, {passive:false});
+$('sugg').addEventListener('pointerup', e => {
+  if (_hit) { const b = _hit; _hit = null; pickSugg(b); }
+});
+$('sugg').addEventListener('pointercancel', () => { _hit = null; });
+
+function pickSugg(b) {
+  $('symbol').value = b;
+  $('sugg').hidden = true;
+  $('symbol').blur();
+  run();
+}
+
+$('symbol').addEventListener('focus', () => {
+  PREV = $('symbol').value;
+  $('symbol').select();
+  ensureList().then(showSugg);
+});
+$('symbol').addEventListener('input', showSugg);
+$('symbol').addEventListener('blur', () => setTimeout(() => {
+  $('sugg').hidden = true;
+  if (!$('symbol').value.trim()) $('symbol').value = PREV;
+}, 800));
+$('symbol').addEventListener('change', run);
+$('interval').addEventListener('change', () => { localStorage.setItem('iv', $('interval').value); run(); });
+document.addEventListener('click', e => {
+  if (!e.target.closest('.controls')) $('sugg').hidden = true;
+});
 
 async function run() {
   const input = $('symbol').value.trim(); if (!input) return;
@@ -292,13 +323,6 @@ async function run() {
     loadChain(tok).catch(()=>{});
   } catch (e) { $('err').textContent = e.message; }
 }
-
-$('symbol').addEventListener('focus', () => { PREV=$('symbol').value; $('symbol').value=''; ensureList().then(showSugg); });
-$('symbol').addEventListener('input', showSugg);
-$('symbol').addEventListener('blur', () => setTimeout(() => { $('sugg').hidden=true; if(!$('symbol').value.trim()) $('symbol').value=PREV; }, 400));
-$('sugg').addEventListener('click', e => { const sg = e.target.closest('.sg[data-b]'); if(!sg) return; $('symbol').value=sg.dataset.b; $('sugg').hidden=true; run(); });
-$('symbol').addEventListener('change', run);
-$('interval').addEventListener('change', () => { localStorage.setItem('iv', $('interval').value); run(); });
 
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('tr-TR'); }, 1000);
 
