@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0c10">
 <title>EMDUS Alpha · Takas</title>
 <style>
-:root{--bg:#0b0c0e;--panel:#15171a;--alt:#1a1d21;--line:#24282d;--frame:#2a2e33;--fg:#e8eaed;--sub:#9aa1a9;--amb:#ffa21a;--g:#3ddc97;--r:#ff6470}
+:root{--bg:#0b0c0e;--panel:#15171a;--alt:#1a1d21;--line:#24282d;--frame:#2a2e33;--fg:#e8eaed;--sub:#9aa1a9;--amb:#ffa21a;--g:#3ddc97;--r:#ff6470;--gbg:#123524;--rbg:#3a161b;--y:#ffb547}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-variant-numeric:tabular-nums}
 main{max-width:520px;margin:0 auto;padding:14px 12px}
@@ -29,8 +29,10 @@ th{color:var(--sub);font-weight:500;font-size:10.5px;letter-spacing:.08em;text-a
 td{padding:4px 9px;text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
 tbody tr:nth-child(even){background:var(--alt)}
-.p{color:var(--g)} .n{color:var(--r)} .na{color:var(--sub)}
+.p{color:var(--g)} .n{color:var(--r)} .na{color:var(--sub)} .a{color:var(--y)}
 .lbl{color:var(--sub);letter-spacing:.04em}
+tr.mb{background:var(--gbg)!important} tr.mbn{background:var(--rbg)!important}
+.blk{display:inline-block;height:12px;vertical-align:middle}
 .wide{text-align:center!important}
 .src{color:var(--sub);font-size:10.5px;letter-spacing:.1em;text-align:center;padding:5px 8px;line-height:1.5}
 #cvd{display:block;width:100%;height:220px}
@@ -49,7 +51,7 @@ tbody tr:nth-child(even){background:var(--alt)}
 <div id="err" class="err"></div>
 <div class="box">
   <div class="band"><span>TAKAS</span><span id="price"></span></div>
-  <table id="tbl"><tr><td class="wide na" colspan="4">Coin seçin</td></tr></table>
+  <table id="tbl"></table>
   <table id="supply"></table>
   <div id="src" class="src"></div>
 </div>
@@ -57,11 +59,11 @@ tbody tr:nth-child(even){background:var(--alt)}
   <div class="band"><span>CVD · EMA20/50</span></div>
   <canvas id="cvd"></canvas>
   <div id="cvdinfo" class="cvdinfo"></div>
-  <table id="mtf"><tr><td class="wide na" colspan="6">—</td></tr></table>
+  <table id="mtf"></table>
 </div>
 <div class="box">
   <div class="band"><span>ALPHA · ZİNCİR ÜSTÜ</span></div>
-  <table id="chain"><tr><td class="wide na" colspan="4">…</td></tr></table>
+  <table id="chain"></table>
 </div>
 </main>
 <script type="module">
@@ -69,7 +71,7 @@ import { AlphaRegistry } from './alpha.js';
 
 const $ = id => document.getElementById(id);
 const up = s => String(s||'').toLocaleUpperCase('en-US').replace(/İ/g,'I');
-const fmtVol = x => { if (x==null || Number.isNaN(x)) return '—'; const a=Math.abs(x), r1=y=>(Math.round(y*10)/10).toFixed(1).replace(/\.?0+$/,''); if(a>=1e9)return r1(x/1e9)+'B'; if(a>=1e6)return r1(x/1e6)+'M'; if(a>=1e3)return r1(x/1e3)+'K'; return r1(x); };
+const fmtVol = x => { if (x==null || Number.isNaN(x)) return '—'; const a=Math.abs(x), r1=y=>(Math.round(y*10)/10).toFixed(1).replace(/\.?0+$/,''); if(a>=1e12)return r1(x/1e12)+'T'; if(a>=1e9)return r1(x/1e9)+'B'; if(a>=1e6)return r1(x/1e6)+'M'; if(a>=1e3)return r1(x/1e3)+'K'; return r1(x); };
 const fmtPct = x => x==null ? '—' : (Math.round(x*10)/10)+'%';
 const cls = p => p==null ? 'na' : p ? 'p' : 'n';
 const pos = x => x==null ? null : x>=0;
@@ -85,7 +87,18 @@ async function getKlines(full, interval, limit=500) {
   const j = await r.json();
   if (!j || j.success === false) throw new Error('Kline: '+((j&&j.message)||'yanıt geçersiz'));
   const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
+  // [0]=openTime [1]=open [2]=high [3]=low [4]=close [5]=volume [9]=takerBuyBaseVolume
   return arr.map(k => ({ t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5], tb:+k[9] }));
+}
+
+// ============ EMDUS GERÇEK AGRESÖR FORMÜLÜ ============
+// alış  = taker buy (agresör alış)     → k[9]
+// satış = hacim − taker buy             → k[5] − k[9]
+// fark  = alış − satış = 2*tb − v
+function dcuOf(b) {
+  const buy  = b.tb;
+  const sell = b.v - b.tb;
+  return { buy, sell, dcu: buy - sell };
 }
 
 function windowStats(deltas, vols, n) {
@@ -95,21 +108,93 @@ function windowStats(deltas, vols, n) {
   return [total, mx, vsum>0 ? total/vsum*100 : 0];
 }
 function emaArr(x,n){ const a=2/(n+1), o=new Array(x.length); for(let i=0;i<x.length;i++) o[i]=i===0?x[0]:a*x[i]+(1-a)*o[i-1]; return o; }
-function cvdSeries(bars){ const cvd=[]; let s=0; bars.forEach(b=>{ s+=2*b.tb-b.v; cvd.push(s); }); return { t:bars.map(b=>b.t), cvd, e20:emaArr(cvd,20), e50:emaArr(cvd,50) }; }
+function cvdSeries(bars){
+  const cvd=[]; let s=0;
+  bars.forEach(b=>{ s+=dcuOf(b).dcu; cvd.push(s); });
+  return { t:bars.map(b=>b.t), cvd, e20:emaArr(cvd,20), e50:emaArr(cvd,50) };
+}
 
-async function compute(token, interval, wins) {
+async function compute(token, interval, wins, mbIndex, avgLen) {
   const bars = await getKlines(token.full, interval, 500);
   if (!bars.length) throw new Error('Bu coin için '+interval+' verisi yok.');
   const br = bars.slice().reverse();
-  const vols = br.map(b=>b.v), deltas = br.map(b=>2*b.tb-b.v);
-  const rows = wins.map(n => { const [t,m,a]=windowStats(deltas,vols,n); return {bar:String(n),takas:t,max:m,ad:a}; });
-  return { token, price: bars[bars.length-1].c, rows, cvd: cvdSeries(bars), nbars: bars.length };
+  const dcuArr = br.map(dcuOf);
+  const vols   = br.map(b=>b.v);
+  const deltas = dcuArr.map(x=>x.dcu);
+  const buys   = dcuArr.map(x=>x.buy);
+  const sells  = dcuArr.map(x=>x.sell);
+
+  const rows = wins.map(n => {
+    const [t,m,a] = windowStats(deltas, vols, n);
+    return { bar:String(n), takas:t, max:m, ad:a };
+  });
+
+  const mbN = wins[mbIndex], mbVal = rows[mbIndex].takas;
+
+  const k = Math.min(mbN, br.length);
+  let bt=0, st=0;
+  for (let i=0;i<k;i++){ bt+=buys[i]; st+=sells[i]; }
+  const flow = bt+st, buyPct = flow>0 ? bt/flow*100 : 50;
+  const buyInt = Math.round(buyPct), blocks = 6, buyBlocks = Math.round(buyPct/100*blocks);
+
+  const al = Math.min(avgLen, vols.length);
+  let vs=0; for (let i=0;i<al;i++) vs+=vols[i];
+  const avgVol = al>0 ? vs/al : null;
+
+  let volPct = null;
+  try {
+    const d = interval==='1d' ? bars : await getKlines(token.full, '1d', 2);
+    if (d.length>=2) {
+      const pc = d[d.length-2].c, cur = d[d.length-1];
+      const tr = Math.max(cur.h, pc) - Math.min(cur.l, pc);
+      volPct = cur.c>0 ? tr/cur.c*100 : null;
+    }
+  } catch(e){ volPct = null; }
+
+  let month=null, week=null;
+  if (interval==='1d') {
+    const now = new Date();
+    const y = now.getUTCFullYear(), mo = now.getUTCMonth();
+    const endM = Date.UTC(mo===11?y+1:y, mo===11?0:mo+1, 1), startM = Date.UTC(y, mo, 1);
+    const mDays = Math.floor(Math.max(endM-now.getTime(),0)/86400000);
+    const passedM = Math.max(Math.floor((endM-startM)/86400000)-mDays, 0);
+    const [ms,,ma] = passedM>0 ? windowStats(deltas,vols,passedM) : [0,null,0];
+    month = {days: mDays+'D', takas: ms, ad: ma};
+    const dow = (now.getUTCDay()+6)%7;
+    const weekStart = Date.UTC(y, mo, now.getUTCDate()-dow);
+    const wDays = Math.floor(Math.max(weekStart+7*86400000-now.getTime(),0)/86400000);
+    const passedW = Math.max(7-wDays, 0);
+    const [ws,,wa] = passedW>0 ? windowStats(deltas,vols,passedW) : [0,null,0];
+    week = {days: wDays+'D', takas: ws, ad: wa};
+  }
+
+  return {
+    token, price: bars[bars.length-1].c, rows, month, week,
+    volPct, avgVol, liveVol: vols[0], livePos: deltas[0]>=0,
+    mbVal, buyInt, sellInt:100-buyInt, buyBlocks, sellBlocks: blocks-buyBlocks,
+    cvd: cvdSeries(bars), nbars: bars.length, mbN
+  };
 }
 
 function render(d) {
   let h = '<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
-  d.rows.forEach(r => { h += `<tr><td>${r.bar}</td><td class="${cls(pos(r.takas))}">${fmtVol(r.takas)}</td><td class="${cls(pos(r.max))}">${fmtVol(r.max)}</td><td class="${cls(pos(r.ad))}">${fmtPct(r.ad)}</td></tr>`; });
+  d.rows.forEach(r => {
+    h += `<tr><td>${r.bar}</td><td class="${cls(pos(r.takas))}">${fmtVol(r.takas)}</td><td class="${cls(pos(r.max))}">${fmtVol(r.max)}</td><td class="${cls(pos(r.ad))}">${fmtPct(r.ad)}</td></tr>`;
+  });
+  if (d.month) {
+    h += `<tr><td>AY</td><td>${d.month.days}</td><td class="${cls(pos(d.month.takas))}">${fmtVol(d.month.takas)}</td><td class="${cls(pos(d.month.ad))}">${fmtPct(d.month.ad)}</td></tr>`;
+    h += `<tr><td>HAFTA</td><td>${d.week.days}</td><td class="${cls(pos(d.week.takas))}">${fmtVol(d.week.takas)}</td><td class="${cls(pos(d.week.ad))}">${fmtPct(d.week.ad)}</td></tr>`;
+  }
+  const vp = d.volPct==null ? '—' : (Math.round(d.volPct*100)/100).toString()+'%';
+  h += `<tr><td class="lbl" colspan="3">VOLATİLİTE</td><td class="a">${vp}</td></tr>`;
+  h += `<tr><td class="lbl" colspan="3">ORT. HACİM</td><td>${fmtVol(d.avgVol)}</td></tr>`;
+  h += `<tr><td class="lbl" colspan="3">ANLIK HACİM</td><td class="${d.livePos?'p':'n'}">${fmtVol(d.liveVol)}</td></tr>`;
+  const mp = pos(d.mbVal);
+  h += `<tr class="${mp===false?'mbn':'mb'}"><td class="lbl" colspan="3">MARKET BASKISI</td><td class="${cls(mp)}">${fmtVol(d.mbVal)}</td></tr>`;
+  const bw = Math.round(d.buyInt*0.9), sw = 90-bw;
+  h += `<tr><td class="p">${d.buyInt}%</td><td colspan="2" class="wide"><span class="blk" style="background:var(--g);width:${bw}px"></span>&nbsp;<span class="blk" style="background:var(--r);width:${sw}px"></span></td><td class="n">${d.sellInt}%</td></tr>`;
   $('tbl').innerHTML = h;
+
   let s = '';
   if (d.token.supply) {
     const mx = d.rows[d.rows.length-1]?.max;
@@ -177,6 +262,10 @@ async function loadChain(token) {
 ['1m','5m','15m','1h','4h','1d'].forEach(iv => { const o=document.createElement('option'); o.value=iv; o.textContent=iv; $('interval').appendChild(o); });
 $('interval').value = localStorage.getItem('iv') || '1h';
 
+const WINS = [1,5,10,14,20,50,100,200];   // Pine sırası
+const MB_IDX = 4;                          // 20 (varsayılan Market Baskısı)
+const AVG_LEN = 20;
+
 let ALL = [], PREV = '';
 async function ensureList() { try { await ALPHA.load(); ALL = ALPHA.symbols(); } catch(e){ $('err').textContent = 'Liste: '+e.message; } }
 
@@ -197,7 +286,7 @@ async function run() {
   $('err').textContent = '';
   const iv = $('interval').value;
   try {
-    const d = await compute(tok, iv, [1,2,5,14,20,50,100,200]);
+    const d = await compute(tok, iv, WINS, MB_IDX, AVG_LEN);
     render(d);
     renderMtf(tok).catch(()=>{});
     loadChain(tok).catch(()=>{});
