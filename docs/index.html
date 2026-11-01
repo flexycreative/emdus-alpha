@@ -80,12 +80,10 @@ function networkOf(c){
 async function bq(network, token, limit){
   let q, vars;
   if(network === 'solana'){
-    // Solana: Transaction.Signature (Hash değil)
-    q = 'query($t:String!,$l:Int!){Solana(dataset:realtime){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{MintAddress:{is:$t}}}}){Block{Time}Transaction{Signature}Trade{AmountInUSD Side{Type}}}}}';
+    q = 'query($t:String!,$l:Int!){Solana(dataset:realtime){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{MintAddress:{is:$t}}},Transaction:{Result:{Success:true}}}){Block{Time}Transaction{Signature}Trade{AmountInUSD Side{Type}}}}}';
     vars = {t: token, l: limit};
   } else {
-    // EVM: Transaction.Hash
-    q = 'query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:realtime){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}}}){Block{Time}Transaction{Hash}Trade{AmountInUSD Side{Type}}}}}';
+    q = 'query($n:evm_network!,$t:String!,$l:Int!){EVM(network:$n,dataset:realtime){DEXTradeByTokens(limit:{count:$l},orderBy:{descending:Block_Time},where:{Trade:{Currency:{SmartContract:{is:$t}}},Transaction:{Result:{Success:true}}}){Block{Time}Transaction{Hash}Trade{AmountInUSD Side{Type}}}}}';
     vars = {n: network, t: token, l: limit};
   }
   const r = await fetch(URL, {
@@ -106,7 +104,6 @@ async function bq(network, token, limit){
     const t = new Date(x.Block?.Time).getTime();
     const u = parseFloat(x.Trade?.AmountInUSD || 0);
     const s = String(x.Trade?.Side?.Type || '').toLowerCase();
-    // Solana: Signature, EVM: Hash
     const hash = String(x.Transaction?.Signature || x.Transaction?.Hash || '');
     if(!(t > 0) || !(u > 0)) continue;
     if(s !== 'buy' && s !== 'sell') continue;
