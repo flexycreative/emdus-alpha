@@ -3,160 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EMDUS Alpha</title>
+<title>EMDUS Alpha · Test</title>
 <style>
-body{background:#0b0c0e;color:#e8eaed;font-family:monospace;margin:0;padding:12px;font-size:13px}
-h1{font-size:15px;color:#ffa21a;margin:0 0 10px}
-#status{color:#9aa1a9;font-size:11px;margin-bottom:8px;min-height:16px}
-#search{width:100%;background:#15171a;color:#fff;border:1px solid #2a2e33;padding:10px;font-size:16px;border-radius:3px;box-sizing:border-box;margin-bottom:8px}
-#search:disabled{opacity:.5}
-#results{background:#15171a;border:1px solid #2a2e33;max-height:50vh;overflow:auto;margin-bottom:8px;border-radius:3px;-webkit-overflow-scrolling:touch}
-#results div{padding:12px;border-bottom:1px solid #24282d;cursor:pointer}
-#results div:active{background:#ffa21a;color:#111}
-#results .cnt{padding:6px 10px;font-size:11px;color:#9aa1a9;background:#0b0c0e;position:sticky;top:0;border-bottom:1px solid #24282d}
-table{width:100%;border-collapse:collapse;background:#15171a;border:1px solid #2a2e33;margin-top:8px}
-th,td{padding:6px 8px;text-align:right;border-bottom:1px solid #24282d}
-th:first-child,td:first-child{text-align:left}
-th{color:#9aa1a9;font-size:11px}
-.p{color:#3ddc97}.n{color:#ff6470}.na{color:#9aa1a9}
-#err{color:#ff6470;margin:8px 0;font-size:12px;min-height:20px;line-height:1.4;word-break:break-word}
+body{background:#0b0c0e;color:#e8eaed;font-family:monospace;margin:0;padding:16px;font-size:14px;line-height:1.6}
+h1{font-size:16px;color:#ffa21a;margin:0 0 16px}
+.box{background:#15171a;border:1px solid #2a2e33;border-radius:4px;padding:12px;margin-bottom:12px}
+.lbl{color:#9aa1a9;font-size:11px;letter-spacing:.06em;margin-bottom:6px;text-transform:uppercase}
+.val{font-size:14px;word-break:break-all}
+.ok{color:#3ddc97}.err{color:#ff6470}.wait{color:#ffb547}
 </style>
 </head>
 <body>
-<h1>EMDUS ALPHA</h1>
-<div id="status">Token listesi yükleniyor...</div>
-<input id="search" placeholder="Coin ara..." autocomplete="off" disabled>
-<div id="results" hidden></div>
-<div id="err"></div>
-<table id="tbl"><tr><td class="na" colspan="4">Coin seçin</td></tr></table>
+<h1>EMDUS ALPHA · TEST</h1>
+
+<div class="box">
+  <div class="lbl">1. Token Listesi</div>
+  <div id="t1" class="val wait">Test ediliyor...</div>
+</div>
+
+<div class="box">
+  <div class="lbl">2. Klines (PEPE örneği)</div>
+  <div id="t2" class="val wait">Bekliyor...</div>
+</div>
+
+<div class="box">
+  <div class="lbl">3. Taker Buy Analizi</div>
+  <div id="t3" class="val wait">Bekliyor...</div>
+</div>
+
 <script type="module">
 const HOST = 'https://www.binance.com';
 const $ = id => document.getElementById(id);
-const up = s => String(s||'').toUpperCase().replace(/İ/g,'I');
 
-let TOKENS = [];
-let currentBase = '';
-
-async function loadTokens() {
+async function test1() {
   try {
     const res = await fetch(HOST + '/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list', {cache:'no-store'});
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const j = await res.json();
     if (!j || j.success === false) throw new Error((j&&j.message)||'API gecersiz');
     const list = Array.isArray(j.data) ? j.data : [];
-    const map = new Map();
-    for (const x of list) {
-      const rawSym = up(x.symbol);
+    if (!list.length) throw new Error('Bos liste');
+    const sample = list.slice(0,3).map(function(x){
+      const rawSym = String(x.symbol||'').toUpperCase();
       const id = x.alphaId || x.alpha_id || x.tokenId || x.id;
-      const quote = up(x.quoteAsset || '');
-      const baseAsset = up(x.baseAsset || '');
-      let base = baseAsset || rawSym.replace(/(USDT|USDC)$/, '');
-      if (!base || !id) continue;
-      if (map.has(base)) continue;
-      map.set(base, {base, id:String(id), quote:(quote==='USDC')?'USDC':'USDT', name:x.name?String(x.name):''});
-    }
-    TOKENS = [...map.values()].sort((a,b)=>a.base.localeCompare(b.base));
-    $('status').textContent = '✓ ' + TOKENS.length + ' coin yüklendi';
-    $('status').style.color = '#3ddc97';
-    $('search').disabled = false;
-    $('search').placeholder = 'Coin ara (' + TOKENS.length + ' coin)';
+      return (x.name||'?') + ' [' + rawSym + '] id=' + id;
+    }).join(' | ');
+    $('t1').innerHTML = '<span class="ok">BASARILI</span><br>Toplam: <b>' + list.length + '</b> token<br><small style="color:#9aa1a9">Ornek: ' + sample + '</small>';
+    return list;
   } catch (e) {
-    $('status').textContent = '✗ Token listesi yüklenemedi: ' + e.message;
-    $('status').style.color = '#ff6470';
+    $('t1').innerHTML = '<span class="err">HATA: ' + e.message + '</span><br><small style="color:#9aa1a9">CORS veya ag sorunu olabilir.</small>';
+    return null;
   }
 }
 
-function showCoins(q) {
-  if (!TOKENS.length) return;
-  const query = up(q).trim();
-  const list = query ? TOKENS.filter(t => t.base.includes(query) || up(t.name).includes(query) || t.id === query) : TOKENS;
-  if (!list.length) { $('results').innerHTML = '<div style="padding:12px;color:#9aa1a9">Sonuc yok</div>'; $('results').hidden = false; return; }
-  const show = list.slice(0, 100);
-  let html = '<div class="cnt">' + list.length + ' coin' + (query?' · filtre: '+query:'') + (list.length>100?' (ilk 100)':'') + '</div>';
-  for (const t of show) html += '<div data-base="' + t.base + '"><b>' + t.base + '</b> <small style="color:#9aa1a9">' + t.name + ' · ' + t.quote + '</small></div>';
-  $('results').innerHTML = html;
-  $('results').hidden = false;
-}
-
-async function fetchKlines(token, interval, limit) {
-  const candidates = ['ALPHA_'+token.id+token.quote, 'ALPHA_'+token.id+'USDT', 'ALPHA_'+token.id+'USDC'];
-  let lastErr = null;
-  for (const sym of candidates) {
-    try {
-      const url = HOST + '/bapi/defi/v1/public/alpha-trade/klines?symbol=' + encodeURIComponent(sym) + '&interval=' + interval + '&limit=' + limit;
-      const res = await fetch(url, {cache:'no-store'});
-      if (!res.ok) { lastErr = new Error('HTTP ' + res.status + ' (' + sym + ')'); continue; }
-      const j = await res.json();
-      if (!j || j.success === false) { lastErr = new Error('API: ' + ((j&&j.message)||'gecersiz')); continue; }
-      const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
-      if (!arr.length) { lastErr = new Error('Bos yanit (' + sym + ')'); continue; }
-      return { sym, bars: arr.map(k => ({time:+k[0], open:+k[1], high:+k[2], low:+k[3], close:+k[4], volume:+k[5], takerBuy:+k[9]})) };
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('Kline alinamadi');
-}
-
-function fmt(x) {
-  if (x == null || isNaN(x)) return '—';
-  const a = Math.abs(x);
-  const f = y => (Math.round(y * 10) / 10).toFixed(1);
-  if (a >= 1e9) return f(x/1e9) + 'B';
-  if (a >= 1e6) return f(x/1e6) + 'M';
-  if (a >= 1e3) return f(x/1e3) + 'K';
-  return f(x);
-}
-
-async function load(base) {
-  const tok = TOKENS.find(t => t.base === base);
-  if (!tok) { $('err').textContent = 'Coin bulunamadi: ' + base; return; }
-  currentBase = tok.base;
-  $('err').textContent = 'Yukleniyor... (' + tok.base + ')';
-  $('err').style.color = '#ffb547';
+async function test2() {
   try {
-    const r = await fetchKlines(tok, '1h', 200);
-    const bars = r.bars, sym = r.sym;
-    const deltas = bars.map(b => {
-      const tb = b.takerBuy || 0;
-      const ts = Math.max(0, b.volume - tb);
-      return { time: b.time, delta: tb - ts, volume: b.volume };
-    });
-    const rev = deltas.slice().reverse();
-    const windows = [1,5,10,14,20,50,100,200];
-    let html = '<tr><th>BAR</th><th>TAKAS</th><th>MAX</th><th>AD%</th></tr>';
-    for (const n of windows) {
-      const k = Math.min(n, rev.length);
-      let sum = 0, max = null, volSum = 0;
-      for (let i = 0; i < k; i++) {
-        sum += rev[i].delta; volSum += rev[i].volume;
-        if (max === null || sum > max) max = sum;
-      }
-      const ad = volSum > 0 ? (sum / volSum) * 100 : 0;
-      const cls = sum >= 0 ? 'p' : 'n';
-      html += '<tr><td>' + n + '</td><td class="' + cls + '">' + fmt(sum) + '</td><td class="' + cls + '">' + fmt(max) + '</td><td class="' + cls + '">' + (Math.round(ad*10)/10) + '%</td></tr>';
-    }
-    $('tbl').innerHTML = html;
-    $('err').textContent = '✓ ' + bars.length + ' bar · ' + tok.base + ' · ' + sym;
-    $('err').style.color = '#3ddc97';
+    const listRes = await fetch(HOST + '/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list', {cache:'no-store'});
+    const listJ = await listRes.json();
+    const list = Array.isArray(listJ.data) ? listJ.data : [];
+    const pepe = list.find(function(x){ return String(x.symbol||'').toUpperCase() === 'PEPE'; });
+    if (!pepe) { $('t2').innerHTML = '<span class="err">PEPE token listede bulunamadi</span>'; return null; }
+    let id = pepe.alphaId || pepe.alpha_id || pepe.tokenId || pepe.id;
+    id = String(id || '');
+    if (!id.toUpperCase().startsWith('ALPHA_')) id = 'ALPHA_' + id;
+    const quote = String(pepe.quoteAsset||'USDT').toUpperCase();
+    const sym = id + quote;
+    const url = HOST + '/bapi/defi/v1/public/alpha-trade/klines?symbol=' + encodeURIComponent(sym) + '&interval=1h&limit=200';
+    const res = await fetch(url, {cache:'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    if (!j || j.success === false) throw new Error((j&&j.message)||'API gecersiz');
+    const arr = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
+    if (!arr.length) throw new Error('Bos klines');
+    $('t2').innerHTML = '<span class="ok">BASARILI</span><br>Sembol: <b>' + sym + '</b><br>Bar sayisi: <b>' + arr.length + '</b>';
+    return arr;
   } catch (e) {
-    $('err').textContent = 'Hata: ' + e.message;
-    $('err').style.color = '#ff6470';
+    $('t2').innerHTML = '<span class="err">HATA: ' + e.message + '</span>';
+    return null;
   }
 }
 
-$('search').addEventListener('focus', () => showCoins($('search').value));
-$('search').addEventListener('input', () => showCoins($('search').value));
-$('search').addEventListener('click', () => showCoins($('search').value));
-$('results').addEventListener('click', e => {
-  const d = e.target.closest('div[data-base]');
-  if (!d) return;
-  $('search').value = d.dataset.base;
-  $('results').hidden = true;
-  load(d.dataset.base);
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('#search') && !e.target.closest('#results')) $('results').hidden = true;
-});
-loadTokens();
+async function test3() {
+  const arr = await test2();
+  if (!arr) { $('t3').innerHTML = '<span class="err">Klines alinamadi</span>'; return; }
+  const last = arr[arr.length - 1];
+  const t = +last[0], v = +last[5], tb = +last[9];
+  const sell = v - tb;
+  const delta = tb - sell;
+  const delta2 = 2*tb - v;
+  $('t3').innerHTML =
+    'Son bar: ' + new Date(t).toLocaleString('tr-TR') + '<br>' +
+    'Toplam hacim (k[5]): <b>' + v + '</b><br>' +
+    'Taker buy (k[9]): <b>' + tb + '</b><br>' +
+    'Taker sell (v-tb): <b>' + sell + '</b><br>' +
+    'Delta (tb-sell): <b>' + delta + '</b><br>' +
+    'Delta kontrol (2tb-v): <b>' + delta2 + '</b><br>' +
+    (tb === v ? '<span class="err">UYARI: takerBuy = volume (Alpha bugu)</span>' : '<span class="ok">OK: takerBuy farkli (gercek ayrim var)</span>');
+}
+
+test1();
+test3();
 </script>
 </body>
 </html>
